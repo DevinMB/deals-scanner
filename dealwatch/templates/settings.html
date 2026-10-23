@@ -20,11 +20,49 @@
   {% else %}<p class="muted">Appears after the first scan.</p>{% endif %}
 </section>
 
-<section>
-  <h2>Telegram</h2>
-  <p>Bot token: <code>{{ token }}</code> · Chat: <code>{{ chat }}</code>
-    <br><small class="muted">These come from <code>.env</code> and are never stored in the database.{% if dry_run %} <strong>DRY_RUN is on: nothing is sent.</strong>{% endif %}</small></p>
-  <p><button class="btn" hx-post="/telegram/test" hx-target="#tg-result" hx-swap="innerHTML">Send test message</button> <span id="tg-result"></span></p>
+<section id="people">
+  <h2>Telegram recipients</h2>
+  <p class="muted"><small>Bot token {{ token }} · your chat {{ chat }} (both from <code>.env</code>, never stored in the database).
+    {% if dry_run %}<strong>DRY_RUN is on: nothing is sent.</strong>{% endif %}
+    Pick who gets each watch's alerts on its edit page. Health warnings go to you only.</small></p>
+  {% if people_error %}<div class="errors" role="alert">Give the person a name and a numeric chat ID.</div>{% endif %}
+  <ul class="people">
+    {% for r in people %}
+    <li>
+      <form method="post" action="/recipients/{{ r.id }}/rename" class="rename">
+        <input name="name" value="{{ r.name }}" aria-label="Name">
+        <button class="btn small">Rename</button>
+      </form>
+      <span class="chat muted"><small>{% if r.is_owner %}you · chat from .env{% else %}chat {{ r.chat_id }}{% endif %}</small></span>
+      <span class="acts">
+        <button class="btn small" hx-post="/recipients/{{ r.id }}/test" hx-target="#rt{{ r.id }}">Send test</button>
+        {% if not r.is_owner %}
+        <form method="post" action="/recipients/{{ r.id }}/delete" class="inline"
+              onsubmit="return this.dataset.ok === '1' || (this.dataset.ok = '1', this.querySelector('button').textContent = 'Click again to remove', false)">
+          <button class="btn small danger-btn">Remove</button>
+        </form>
+        {% endif %}
+        <span id="rt{{ r.id }}"></span>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <details class="add-person" {% if people_error %}open{% endif %}>
+    <summary class="btn">+ Add a person</summary>
+    <ol class="steps">
+      <li>Ask them to open your bot in Telegram and send it any message (that also lets the bot write to them).</li>
+      <li><button class="btn small" hx-get="/telegram/recent" hx-target="#recent">Find people who messaged the bot</button>
+        <div id="recent"></div></li>
+      <li>Or enter their chat ID by hand:
+        <form method="post" action="/recipients" class="add-form">
+          <input name="name" placeholder="Name" required>
+          <input name="chat_id" placeholder="Chat ID, e.g. 123456789" inputmode="numeric" required>
+          <label class="check"><input type="checkbox" name="all_watches"> Add to all {{ watch_count }} watches</label>
+          <button class="btn primary">Add</button>
+        </form></li>
+    </ol>
+  </details>
 </section>
 
 <form method="post" action="/settings" class="settings-form">

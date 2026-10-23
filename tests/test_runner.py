@@ -36,9 +36,10 @@ class RecordingNotifier(Notifier):
     def __init__(self, ok=True):
         self.ok, self.alerts, self.health_msgs = ok, [], []
 
-    def alert(self, a):
+    def alert(self, a, recipients):
         self.alerts.append(a)
-        return self.ok
+        self.sent_to = [r["id"] for r in recipients]
+        return {r["id"] for r in recipients} if self.ok else set()
 
     def health(self, text):
         self.health_msgs.append(text)
@@ -68,8 +69,11 @@ def conn(tmp_path):
 def add_watch(conn, **kw):
     cols = {"name": "Aeron", "search_queries": json.dumps(["herman miller aeron"]),
             "sources": json.dumps(["ebay", "craigslist"]), **kw}
-    return conn.execute(f"INSERT INTO watches ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
-                        list(cols.values())).lastrowid
+    wid = conn.execute(f"INSERT INTO watches ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
+                       list(cols.values())).lastrowid
+    from dealwatch import recipients
+    recipients.add_owner_to(conn, wid)
+    return wid
 
 
 def scan(conn, tmp_path, notifier):
@@ -238,3 +242,36 @@ def test_ollama_down_still_alerts_with_note(conn, tmp_path, monkeypatch):
     n = RecordingNotifier()
     scan(conn, tmp_path, n)
     assert len(n.alerts) == 1 and "Ollama unavailable" in n.alerts[0]["note"]
+
+
+def test_each_recipient_gets_it_once_and_failures_retry_alone(conn, tmp_path):
+    from dealwatch import recipients
+    wid = add_watch(conn, max_price=1000)
+    alex = conn.execute("INSERT INTO recipients (name, chat_id) VALUES ('Alex', '777')").lastrowid
+    recipients.set_for_watch(conn, wid, [recipients.owner_id(conn), alex])
+    FakeEbay.listings = [ebay(1, 900)]
+
+    class AlexDown(RecordingNotifier):
+        def alert(self, a, people):
+            super().alert(a, people)
+            return {p["id"] for p in people if p["chat_id"] != "777"}
+    n1 = AlexDown()
+    scan(conn, tmp_path, n1)
+    assert conn.execute("SELECT telegram_ok FROM alerts").fetchone()[0] == 0  # Alex still owed it
+    n2 = RecordingNotifier()
+    scan(conn, tmp_path, n2)
+    assert n2.sent_to == [alex]  # only Alex is retried
+    assert conn.execute("SELECT telegram_ok FROM alerts").fetchone()[0] == 1
+    n3 = RecordingNotifier()
+    scan(conn, tmp_path, n3)
+    assert n3.alerts == []
+
+
+def test_watch_with_no_recipients_sends_nothing(conn, tmp_path):
+    from dealwatch import recipients
+    wid = add_watch(conn, max_price=1000)
+    recipients.set_for_watch(conn, wid, [])
+    FakeEbay.listings = [ebay(1, 900)]
+    n = RecordingNotifier()
+    scan(conn, tmp_path, n)
+    assert n.alerts == []

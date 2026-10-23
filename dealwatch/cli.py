@@ -66,6 +66,8 @@ def watch_add(args) -> int:
         " max_price, bundle_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (args.name, json.dumps(args.query), args.regex, json.dumps(args.exclude),
          json.dumps(args.sources or list(registry())), args.override, args.max_price, int(args.bundle))).lastrowid
+    from . import recipients
+    recipients.add_owner_to(conn, wid)
     print(f"added watch {wid}: {args.name}")
     return 0
 

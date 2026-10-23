@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, gpu_import, preview, settings as settings_mod, telegram
+from . import config, db, gpu_import, preview, recipients, settings as settings_mod, telegram
 from .models import Watch
 from .runner import SOURCE_ORDER, iso, market
 from .scheduler import Scheduler
@@ -161,7 +161,7 @@ def dashboard(request: Request):
                           (w.id, day_ago)).fetchone()[0]
         alert = c.execute("SELECT a.tier, a.price_total, a.sent_at, l.title FROM alerts a JOIN listings l ON l.id = a.listing_id"
                           " WHERE a.watch_id = ? AND a.telegram_ok = 1 ORDER BY a.sent_at DESC LIMIT 1", (w.id,)).fetchone()
-        cards.append({"w": w, "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
+        cards.append({"w": w, "people": [r["name"] for r in recipients.for_watch(c, w.id)], "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
                       "override_used": w.override_enabled and w.typical_override is not None,
                       "last_scan": last, "new24": new24, "deals": deals, "alert": alert})
     names = {cd["w"].name.lower() for cd in cards}
@@ -275,36 +275,50 @@ def _as_watch(d: dict, wid=None) -> Watch:
                                                   "bundle_enabled") else v) for k, v in d.items()})
 
 
+def form_page(request: Request, w: Watch, errors: list, is_new: bool, chosen: set[int]):
+    return page(request, "watch_form.html", w=w, errors=errors, is_new=is_new,
+                people=recipients.all(conn(request)), chosen=chosen)
+
+
+def chosen_recipients(form) -> set[int]:
+    return {int(k[5:]) for k in form if k.startswith("rcpt_") and k[5:].isdigit()}
+
+
 @app.get("/watches/new")
 def new_watch(request: Request):
-    return page(request, "watch_form.html", w=FORM_DEFAULTS, errors=[], is_new=True)
+    return form_page(request, FORM_DEFAULTS, [], True, {recipients.owner_id(conn(request))})
 
 
 @app.get("/watches/{wid}/edit")
 def edit_watch(request: Request, wid: int):
-    return page(request, "watch_form.html", w=get_watch(request, wid), errors=[], is_new=False)
+    chosen = {r["id"] for r in recipients.for_watch(conn(request), wid)}
+    return form_page(request, get_watch(request, wid), [], False, chosen)
 
 
 @app.post("/watches")
 async def create_watch(request: Request):
-    d, errors = watch_from_form(await request.form())
+    form = await request.form()
+    d, errors = watch_from_form(form)
     if errors:
-        return page(request, "watch_form.html", w=_as_watch(d), errors=errors, is_new=True)
+        return form_page(request, _as_watch(d), errors, True, chosen_recipients(form))
     cols = list(d)
     vals = [json.dumps(v) if isinstance(v, list) else v for v in d.values()]
     wid = conn(request).execute(f"INSERT INTO watches ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
                                 vals).lastrowid
+    recipients.set_for_watch(conn(request), wid, sorted(chosen_recipients(form)))
     return RedirectResponse(f"/watches/{wid}", 303)
 
 
 @app.post("/watches/{wid}")
 async def update_watch(request: Request, wid: int):
     get_watch(request, wid)
-    d, errors = watch_from_form(await request.form())
+    form = await request.form()
+    d, errors = watch_from_form(form)
     if errors:
-        return page(request, "watch_form.html", w=_as_watch(d, wid), errors=errors, is_new=False)
+        return form_page(request, _as_watch(d, wid), errors, False, chosen_recipients(form))
     conn(request).execute(f"UPDATE watches SET {', '.join(f'{k} = ?' for k in d)} WHERE id = ?",
                           [json.dumps(v) if isinstance(v, list) else v for v in d.values()] + [wid])
+    recipients.set_for_watch(conn(request), wid, sorted(chosen_recipients(form)))
     return RedirectResponse(f"/watches/{wid}", 303)
 
 
@@ -369,7 +383,7 @@ def watch_detail(request: Request, wid: int, all: int = 0):
                        "WHERE a.watch_id = ? ORDER BY a.id DESC LIMIT 50", (wid,)).fetchall()
     runs = c.execute("SELECT source, finished_at, listings_found, error FROM runs WHERE id IN "
                      "(SELECT MAX(id) FROM runs WHERE watch_id = ? GROUP BY source)", (wid,)).fetchall()
-    return page(request, "watch_detail.html", w=w, learned=med, samples=n, newest=newest, typical=typical,
+    return page(request, "watch_detail.html", w=w, people=recipients.for_watch(c, wid), learned=med, samples=n, newest=newest, typical=typical,
                 override_used=w.override_enabled and w.typical_override is not None, listings=listings, total=total,
                 history=history, chart=_chart(history), alerts=alerts, runs={r["source"]: r for r in runs})
 
@@ -454,10 +468,11 @@ def _mask(v: str | None) -> str:
 
 
 @app.get("/settings")
-def settings_page(request: Request, saved: int = 0):
+def settings_page(request: Request, saved: int = 0, people_error: int = 0):
     s, _ = rules_for(request)
     cfg = request.app.state.cfg
-    return page(request, "settings.html", s=s, errors=[], saved=saved, badges=health_badges(s),
+    return page(request, "settings.html", s=s, errors=[], saved=saved, badges=health_badges(s), people_error=people_error,
+                people=recipients.all(conn(request)), watch_count=conn(request).execute("SELECT COUNT(*) FROM watches").fetchone()[0],
                 token=_mask(cfg.telegram_bot_token), chat=_mask(cfg.telegram_chat_id), dry_run=cfg.dry_run,
                 base_url=cfg.base_url, feeds_text=_feeds_text(s["rss_feeds"]))
 
@@ -516,6 +531,7 @@ async def save_settings(request: Request):
         s = {**settings_mod.load(c), **{k: v for k, v in new.items() if v is not None}}
         cfg = request.app.state.cfg
         return page(request, "settings.html", s=s, errors=errors, saved=0, badges=health_badges(s),
+                    people=recipients.all(c), watch_count=c.execute("SELECT COUNT(*) FROM watches").fetchone()[0],
                     token=_mask(cfg.telegram_bot_token), chat=_mask(cfg.telegram_chat_id), dry_run=cfg.dry_run,
                     base_url=cfg.base_url, feeds_text=form.get("rss_feeds", ""))
     old_interval = settings_mod.load(c)["scan_interval_min"]
@@ -532,6 +548,56 @@ def reset_setting(request: Request, key: str):
     if key in ("hard_blacklist", "soft_flags", "rss_feeds"):
         conn(request).execute("DELETE FROM settings WHERE key = ?", (key,))
     return RedirectResponse("/settings?saved=1", 303)
+
+
+# ---------- recipients ----------
+
+@app.post("/recipients")
+async def add_recipient(request: Request):
+    form = await request.form()
+    name, chat = form.get("name", "").strip(), form.get("chat_id", "").strip()
+    if not name or not re.fullmatch(r"-?\d{3,20}", chat):
+        return RedirectResponse("/settings?people_error=1#people", 303)
+    c = conn(request)
+    rid = c.execute("INSERT INTO recipients (name, chat_id) VALUES (?, ?)", (name, chat)).lastrowid
+    if form.get("all_watches"):
+        c.execute("INSERT OR IGNORE INTO watch_recipients (watch_id, recipient_id) SELECT id, ? FROM watches", (rid,))
+    return RedirectResponse("/settings?saved=1#people", 303)
+
+
+@app.post("/recipients/{rid}/rename")
+async def rename_recipient(request: Request, rid: int):
+    name = (await request.form()).get("name", "").strip()
+    if name:
+        conn(request).execute("UPDATE recipients SET name = ? WHERE id = ?", (name, rid))
+    return RedirectResponse("/settings?saved=1#people", 303)
+
+
+@app.post("/recipients/{rid}/delete")
+def delete_recipient(request: Request, rid: int):
+    conn(request).execute("DELETE FROM recipients WHERE id = ? AND is_owner = 0", (rid,))
+    return RedirectResponse("/settings?saved=1#people", 303)
+
+
+@app.post("/recipients/{rid}/test", response_class=HTMLResponse)
+def test_recipient(request: Request, rid: int):
+    r = conn(request).execute("SELECT * FROM recipients WHERE id = ?", (rid,)).fetchone()
+    if not r:
+        return ""
+    n = request.app.state.notifier
+    ok, reason = n.test(n.chat_for(r))
+    if ok:
+        return '<span class="ok">Sent.</span>'
+    hint = " They need to open your bot and press Start first." if "chat not found" in reason or "blocked" in reason else ""
+    return f'<span class="err">Not sent: {html.escape(reason)}.{hint}</span>'
+
+
+@app.get("/telegram/recent", response_class=HTMLResponse)
+def recent_chats(request: Request):
+    chats, err = request.app.state.notifier.recent_chats()
+    known = {r["chat_id"] for r in recipients.all(conn(request))} | {request.app.state.cfg.telegram_chat_id}
+    return templates.get_template("_recent_chats.html").render(
+        chats=[c for c in chats if c["chat_id"] not in known], err=err, any=bool(chats))
 
 
 @app.post("/ollama/test", response_class=HTMLResponse)

@@ -91,18 +91,46 @@ class TelegramNotifier(Notifier):
             return False, reason
         return True, ""
 
-    def alert(self, a: dict) -> bool:
+    def chat_for(self, recipient) -> str | None:
+        return recipient["chat_id"] or (self.chat_ids[0] if self.chat_ids else None)
+
+    def alert(self, a: dict, recipients: list) -> set[int]:
+        """Send to each recipient separately, so one bad chat doesn't block the others."""
         if not self.enabled():
-            return False
-        return self.send(format_alert(a, self.base_url), quiet=a["quiet"])[0]
+            return set()
+        text, delivered = format_alert(a, self.base_url), set()
+        for r in recipients:
+            chat = self.chat_for(r)
+            if chat and self.send(text, quiet=a["quiet"], chat_ids=[chat])[0]:
+                delivered.add(r["id"])
+        return delivered
 
     def health(self, text: str) -> bool:
         if not self.enabled():
             return False
         return self.send(text)[0]
 
-    def test(self) -> tuple[bool, str]:
-        return self.send(TEST_TEXT)
+    def test(self, chat_id: str | None = None) -> tuple[bool, str]:
+        return self.send(TEST_TEXT, chat_ids=[chat_id] if chat_id else None)
+
+    def recent_chats(self) -> tuple[list[dict], str]:
+        """People who recently messaged the bot (getUpdates), for one-click adding. ([], reason) on failure."""
+        if not self.token:
+            return [], "TELEGRAM_BOT_TOKEN not set in .env"
+        try:
+            body = httpx.get(API.format(token=self.token).replace("/sendMessage", "/getUpdates"), timeout=20).json()
+        except Exception as ex:
+            return [], self._redact(f"{type(ex).__name__}: {ex}")
+        if not body.get("ok"):
+            return [], self._redact(str(body.get("description", "Telegram refused the request")))
+        chats = {}
+        for u in body.get("result", []):
+            msg = u.get("message") or u.get("edited_message") or {}
+            c = msg.get("chat") or {}
+            if c.get("id") is not None:
+                name = " ".join(x for x in (c.get("first_name"), c.get("last_name")) if x) or c.get("title") or ""
+                chats[str(c["id"])] = {"chat_id": str(c["id"]), "name": name, "username": c.get("username")}
+        return list(chats.values()), ""
 
 
 def from_config(cfg, conn_factory=None, dry_run: bool = False) -> TelegramNotifier:

@@ -44,6 +44,13 @@
         <span class="prefix">$<input name="typical_override" inputmode="decimal" value="{{ '%.0f' % w.typical_override if w.typical_override else '' }}"></span>
         <span class="check"><input type="checkbox" name="override_enabled" {% if w.override_enabled %}checked{% endif %}> Use override</span></label>
     </div>
+    <fieldset class="checks people-pick">
+      <legend>Send alerts to</legend>
+      {% for r in people %}
+      <label class="chip-check"><input type="checkbox" name="rcpt_{{ r.id }}" {% if r.id in chosen %}checked{% endif %}> {{ r.name }}{% if r.is_owner %} <small>(you)</small>{% endif %}</label>
+      {% endfor %}
+      <a href="/settings#people" class="manage"><small>Add or manage people</small></a>
+    </fieldset>
     <label class="check"><input type="checkbox" name="enabled" {% if w.enabled %}checked{% endif %}> Watch is active</label>
   </section>
 

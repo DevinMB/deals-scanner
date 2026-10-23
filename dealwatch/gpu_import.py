@@ -10,6 +10,7 @@ import re
 import sqlite3
 from pathlib import Path
 
+from . import recipients
 from .scoring import DEFAULTS
 
 GPU = json.loads((Path(__file__).parent / "gpu_import.json").read_text())
@@ -40,6 +41,8 @@ def run(conn: sqlite3.Connection) -> tuple[int, int]:
             conn.execute(f"UPDATE watches SET {', '.join(f'{k} = ?' for k in vals)} WHERE id = ?", [*vals.values(), row[0]])
             updated += 1
         else:
-            conn.execute(f"INSERT INTO watches ({', '.join(vals)}) VALUES ({', '.join('?' * len(vals))})", list(vals.values()))
+            wid = conn.execute(f"INSERT INTO watches ({', '.join(vals)}) VALUES ({', '.join('?' * len(vals))})",
+                               list(vals.values())).lastrowid
+            recipients.add_owner_to(conn, wid)
             created += 1
     return created, updated

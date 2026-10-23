@@ -127,6 +127,29 @@ table.compact { width: auto; }
 .alert-list { list-style: none; padding: 0; margin: 0; }
 .alert-list li { padding: .45rem 0; border-bottom: 1px solid var(--line); }
 
+/* recipients */
+.people { list-style: none; padding: 0; margin: .5rem 0; }
+.people li { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; padding: .5rem 0;
+             border-bottom: 1px solid var(--line); }
+.people .rename { display: flex; gap: .4rem; margin: 0; }
+.people .rename input { width: 12rem; }
+.people .acts { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-left: auto; }
+details.add-person { margin-top: .75rem; }
+details.add-person > summary { list-style: none; }
+details.add-person > summary::-webkit-details-marker { display: none; }
+.steps { padding-left: 1.3rem; }
+.steps li { margin: .6rem 0; }
+.add-form { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; margin: .4rem 0 0; }
+.add-form input:not([type=checkbox]) { width: 14rem; }
+.add-form .check { margin: 0; }
+.recent { list-style: none; padding: 0; }
+.people-pick { gap: .4rem .5rem; align-items: center; }
+.chip-check { display: inline-flex; align-items: center; gap: .3rem; padding: .3rem .7rem; border: 1px solid var(--line);
+              border-radius: 1rem; font-weight: 400; margin: 0; cursor: pointer; }
+.chip-check:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.people-pick .manage { margin-left: .3rem; }
+.card .to { margin: 0; }
+
 /* not relevant chips */
 .nr { margin-top: .35rem; display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
 button.chip { padding: .15rem .55rem; font-size: .8rem; border-radius: 1rem; }

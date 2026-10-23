@@ -1,0 +1,19 @@
+{% if err %}
+<p class="err"><small>Couldn't ask Telegram: {{ err }}</small></p>
+{% elif chats %}
+<ul class="recent">
+  {% for c in chats %}
+  <li>
+    <form method="post" action="/recipients" class="add-form">
+      <input name="name" value="{{ c.name or c.username or c.chat_id }}" aria-label="Name">
+      <input type="hidden" name="chat_id" value="{{ c.chat_id }}">
+      <small class="muted">{% if c.username %}@{{ c.username }} · {% endif %}chat {{ c.chat_id }}</small>
+      <label class="check"><input type="checkbox" name="all_watches"> Add to all watches</label>
+      <button class="btn primary small">Add</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted"><small>{% if any %}Everyone who messaged the bot is already added.{% else %}No recent messages. Telegram only keeps the last 24 hours; ask them to message the bot again, then retry.{% endif %}</small></p>
+{% endif %}

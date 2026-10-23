@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import llm, settings as settings_mod
+from . import llm, recipients as recipients_mod, settings as settings_mod
 from .models import Watch
 from .scoring import (Match, Rules, Score, classify, effective_typical, is_market_sample, looks_like_bundle, score,
                       seller_ok, typical_price)
@@ -36,11 +36,15 @@ def iso(dt: datetime | None = None) -> str:
 
 
 class Notifier:
-    """Sends alerts and health warnings. Returns True only when delivery succeeded."""
+    """Sends alerts and health warnings.
 
-    def alert(self, alert: dict) -> bool:
-        log.info("alert pending (no sender yet): %s %s $%s", alert["tier"], alert["title"][:60], alert["price_total"])
-        return False
+    alert() gets the recipients still owed this alert (rows with id and chat_id; chat_id None = the owner)
+    and returns the ids it delivered to. health() goes to the owner and returns True if delivered.
+    """
+
+    def alert(self, alert: dict, recipients: list) -> set[int]:
+        log.info("alert pending (no sender): %s %s $%s", alert["tier"], alert["title"][:60], alert["price_total"])
+        return set()
 
     def health(self, text: str) -> bool:
         log.warning("health warning pending (no sender yet): %s", text)
@@ -248,6 +252,9 @@ def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: R
         return
     if h.source.name == "ebay" and not _ebay_available(conn, h, now):
         return
+    people = recipients_mod.for_watch(conn, h.watch.id)
+    if not people:
+        return  # nobody to tell; it alerts if someone is added while the listing is still live
     if row:
         alert_id = row["id"]
     else:
@@ -258,12 +265,16 @@ def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: R
             (h.listing_id, h.watch.id, h.listing.price_total, s.tier, s.ratio, s.typical, json.dumps(s.reasons),
              iso(now))).lastrowid
         result.alerts_new += 1
+    done = {r[0] for r in conn.execute("SELECT recipient_id FROM alert_deliveries WHERE alert_id = ?", (alert_id,))}
+    owed = [p for p in people if p["id"] not in done]
     try:
-        ok = notifier.alert(alert_payload(h))
+        delivered = notifier.alert(alert_payload(h), owed) if owed else set()
     except Exception as ex:
         log.warning("alert send failed: %s", ex)
-        ok = False
-    if ok:
+        delivered = set()
+    conn.executemany("INSERT OR IGNORE INTO alert_deliveries (alert_id, recipient_id, sent_at) VALUES (?, ?, ?)",
+                     [(alert_id, rid, iso(now)) for rid in delivered])
+    if done | delivered >= {p["id"] for p in people}:
         conn.execute("UPDATE alerts SET sent_at = ?, telegram_ok = 1 WHERE id = ?", (iso(now), alert_id))
         result.alerts_sent += 1
 

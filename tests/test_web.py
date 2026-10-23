@@ -203,3 +203,35 @@ def test_imported_gpu_watch_matches_like_the_old_scanner(client):
     assert classify("Gaming PC i9-13900K 64GB DDR5 RTX 4090", watches["RTX 4090"], rules).is_bundle
     assert not classify("NVIDIA A100 80GB SXM4", watches["A100 80GB"], rules)
     assert classify("NVIDIA A100 80GB PCIe", watches["A100 80GB"], rules)
+
+
+def test_recipients_flow(client, monkeypatch):
+    db = client.app.state.db
+    wid = create(client, **{"rcpt_1": "on"})
+    assert "rcpt_1" in client.get("/watches/new").text and 'name="rcpt_1" checked' in client.get("/watches/new").text
+    # add Alex to all watches, then remove Me from this watch
+    client.post("/recipients", data={"name": "Alex", "chat_id": "777", "all_watches": "on"})
+    alex = db.execute("SELECT id FROM recipients WHERE name = 'Alex'").fetchone()[0]
+    assert {r[0] for r in db.execute("SELECT recipient_id FROM watch_recipients WHERE watch_id = ?", (wid,))} == {1, alex}
+    assert "→ Me, Alex" in client.get("/").text
+    client.post(f"/watches/{wid}", data={**FORM, f"rcpt_{alex}": "on"})
+    assert [r[0] for r in db.execute("SELECT recipient_id FROM watch_recipients WHERE watch_id = ?", (wid,))] == [alex]
+    edit = client.get(f"/watches/{wid}/edit").text
+    assert 'name="rcpt_1" checked' not in edit and f'name="rcpt_{alex}" checked' in edit
+    # rename, bad input, owner can't be deleted, Alex can
+    client.post(f"/recipients/{alex}/rename", data={"name": "Alex K"})
+    assert "Alex K" in client.get("/settings").text
+    assert "people_error=1" in client.post("/recipients", data={"name": "Bob", "chat_id": "abc"}, follow_redirects=False).headers["location"]
+    client.post("/recipients/1/delete")
+    assert db.execute("SELECT COUNT(*) FROM recipients WHERE is_owner = 1").fetchone()[0] == 1
+    client.post(f"/recipients/{alex}/delete")
+    assert "Alerts go to nobody" in client.get("/").text
+
+
+def test_recent_chats_offers_new_people_only(client, monkeypatch):
+    client.post("/recipients", data={"name": "Alex", "chat_id": "777"})
+    monkeypatch.setattr(client.app.state.notifier, "recent_chats",
+                        lambda: ([{"chat_id": "777", "name": "Alex", "username": None},
+                                  {"chat_id": "888", "name": "Sam Lee", "username": "samlee"}], ""))
+    html = client.get("/telegram/recent").text
+    assert 'value="888"' in html and 'value="777"' not in html and "@samlee" in html

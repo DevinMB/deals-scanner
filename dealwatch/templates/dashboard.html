@@ -40,6 +40,8 @@
       <div><dt>Deals now</dt><dd>{{ c.deals }}</dd></div>
       <div><dt>Last scan</dt><dd>{{ c.last_scan | ago }}</dd></div>
     </dl>
+    {% if not c.people %}<p class="hint">Alerts go to nobody. <a href="/watches/{{ w.id }}/edit">Pick people</a></p>
+    {% elif c.people != ['Me'] %}<p class="muted to"><small>→ {{ c.people | join(', ') }}</small></p>{% endif %}
     {% if c.alert %}
     <p class="last-alert"><span class="tier {{ c.alert.tier | lower | replace(' ', '-') }}">{{ c.alert.tier }}</span>
       {{ c.alert.price_total | money }} · {{ c.alert.title[:60] }} <span class="muted">{{ c.alert.sent_at | ago }}</span></p>

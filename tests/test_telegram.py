@@ -69,7 +69,7 @@ def test_send_ok_quiet_and_no_preview(monkeypatch):
     post = FakePost([{"ok": True}])
     monkeypatch.setattr(telegram.httpx, "post", post)
     n = TelegramNotifier(TOKEN, ["42"])
-    assert n.alert(alert(tier="LONG SHOT", quiet=True)) is True
+    assert n.alert(alert(tier="LONG SHOT", quiet=True), [{"id": 1, "chat_id": None}]) == {1}  # None = owner chat
     url, data = post.calls[0]
     assert url == f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     assert (data["chat_id"], data["disable_notification"], data["disable_web_page_preview"]) == ("42", "true", "true")
@@ -88,5 +88,20 @@ def test_dry_run_unconfigured_and_switched_off(monkeypatch):
     monkeypatch.setattr(telegram.httpx, "post", post)
     assert TelegramNotifier(TOKEN, ["42"], dry_run=True).send("hi") == (False, "dry-run mode: not sent")
     assert TelegramNotifier(None, [""]).test()[0] is False
-    assert TelegramNotifier(TOKEN, ["42"], enabled=lambda: False).alert(alert()) is False
+    assert TelegramNotifier(TOKEN, ["42"], enabled=lambda: False).alert(alert(), [{"id": 1, "chat_id": None}]) == set()
     assert post.calls == []
+
+
+def test_alert_per_recipient_and_recent_chats(monkeypatch):
+    post = FakePost([{"ok": True}, {"ok": False, "description": "bot was blocked by the user"}])
+    monkeypatch.setattr(telegram.httpx, "post", post)
+    n = TelegramNotifier(TOKEN, ["42"])
+    assert n.alert(alert(), [{"id": 1, "chat_id": None}, {"id": 2, "chat_id": "99"}]) == {1}
+    assert [d["chat_id"] for _, d in post.calls] == ["42", "99"]
+    updates = {"ok": True, "result": [
+        {"message": {"chat": {"id": 99, "first_name": "Alex", "last_name": "K", "username": "alexk"}}},
+        {"message": {"chat": {"id": 99, "first_name": "Alex", "last_name": "K"}}},
+        {"edited_message": {"chat": {"id": -100, "title": "Deals group"}}}]}
+    monkeypatch.setattr(telegram.httpx, "get", lambda url, timeout: httpx.Response(200, json=updates))
+    chats, err = n.recent_chats()
+    assert err == "" and [(c["chat_id"], c["name"]) for c in chats] == [("99", "Alex K"), ("-100", "Deals group")]

@@ -10,15 +10,6 @@ Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7n
   Configure via an optional `OLLAMA_URL` env var; pick the model in Settings.
 - Called only on button press, never during scans. Form works by hand when Ollama is off or unset.
 
-## After step 6: extra Telegram recipients per watch
-
-- A "People" tab maps a name to a Telegram chat ID (e.g. "Alex → 123456789").
-- Each watch has a list of people to alert in addition to the owner's `TELEGRAM_CHAT_ID`.
-- Each person must open the bot and press Start once; Telegram doesn't let bots message someone first.
-  "Send test message" per person confirms it works. Health warnings go to the owner only.
-- Data: `recipients (id, name, chat_id)` + `watch_recipients (watch_id, recipient_id)`; the step 5 sender
-  already takes a list of chat IDs, and alert rows record delivery per recipient so one failed chat retries alone.
-
 ## Step 8 (last): UI review pass
 
 - Drive every page with Playwright at desktop and phone widths, screenshot each, and clean up layout,
@@ -36,3 +27,6 @@ Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7n
   qwen3.5:4b, picked on 27 labeled titles from the first scans (27/27 at ~2 s; qwen3:4b 22/27; the 9B 23/27).
   Price is left out of the prompt: with it, small models called real cheap deals "parts".
 - 2026-10-23: GPU import brings fallback_median over as typical_override, switched on (user's choice).
+- 2026-10-23: Telegram recipients built (user asked): Settings → Telegram recipients (you = "Me", chat from .env;
+  add people by "Find people who messaged the bot" or chat ID; rename, test, remove), per-watch "Send alerts to"
+  picker defaulting to you, delivery tracked per person so a failed chat retries alone. Health warnings: owner only.
