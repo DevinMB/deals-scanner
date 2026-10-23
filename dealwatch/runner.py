@@ -55,6 +55,7 @@ class Hit:
     match: Match
     listing_id: int | None = None
     score: Score | None = None
+    typical_src: str = ""
 
 
 @dataclass
@@ -229,6 +230,7 @@ def alert_payload(h: Hit) -> dict:
             "is_bundle": h.match.is_bundle, "title": l.title, "url": l.url, "price_total": l.price_total,
             "source": h.source.label, "location": l.location, "seller": l.seller, "condition": l.condition,
             "note": l.extra.get("note"), "best_offer": l.extra.get("best_offer", False),
+            "typical_src": h.typical_src, "max_price": h.watch.max_price,
             "quiet": s.tier == "LONG SHOT" and h.watch.quiet_longshots}
 
 
@@ -352,7 +354,10 @@ def _run(conn, notifier, result, watch_ids, source_names, reg, sleep):
             store(conn, h, now)
         learned = learn_prices(conn, hits, rules, now_dt)
         for h in hits:
-            typical = effective_typical(learned.get(h.watch.id, (None, 0))[0], h.watch)
+            med, n = learned.get(h.watch.id, (None, 0))
+            typical = effective_typical(med, h.watch)
+            h.typical_src = ("your override" if h.watch.override_enabled and h.watch.typical_override is not None
+                             else f"eBay asking, {n} samples" if typical is not None else "")
             h.score = score_hit(h, typical, rules)
             sc = h.score
             conn.execute("UPDATE listings SET tier = ?, ratio = ?, reasons = ?, price_total = ? WHERE id = ?",

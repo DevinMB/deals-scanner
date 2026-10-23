@@ -19,4 +19,8 @@
 {% else %}
 <p class="empty">No watches yet. Adding and importing watches comes in a later build step.</p>
 {% endif %}
+<footer class="tools">
+  <button hx-post="/telegram/test" hx-target="#tg-result" hx-swap="innerHTML">Send Telegram test</button>
+  <span id="tg-result"></span>
+</footer>
 {% endblock %}

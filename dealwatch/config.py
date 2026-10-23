@@ -12,6 +12,7 @@ class Config:
     telegram_chat_id: str | None
     ui_password: str | None
     base_url: str | None
+    dry_run: bool = False
 
     @property
     def db_path(self) -> Path:
@@ -28,4 +29,5 @@ def load() -> Config:
         telegram_chat_id=env("TELEGRAM_CHAT_ID"),
         ui_password=env("UI_PASSWORD"),
         base_url=env("BASE_URL"),
+        dry_run=os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes"),
     )

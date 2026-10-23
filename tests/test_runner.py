@@ -88,6 +88,7 @@ def test_learns_median_and_alerts_local_deal_once(conn, tmp_path):
     r = scan(conn, tmp_path, n)
     assert conn.execute("SELECT COUNT(*) FROM price_samples").fetchone()[0] == 7
     assert [a["tier"] for a in n.alerts] == ["DEAL"] and n.alerts[0]["typical"] == 810
+    assert n.alerts[0]["typical_src"] == "eBay asking, 7 samples"
     assert (r.alerts_new, r.alerts_sent) == (1, 1)
     row = conn.execute("SELECT tier, sent_at, telegram_ok FROM alerts").fetchone()
     assert row["tier"] == "DEAL" and row["telegram_ok"] == 1 and row["sent_at"]

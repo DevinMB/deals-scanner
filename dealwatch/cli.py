@@ -4,8 +4,9 @@
       Print the listings a source parses for a query, marking which ones match an ad-hoc watch.
   python -m dealwatch.cli watch add "<name>" --query Q [--query Q ...] [--override 800] [--max-price 400] ...
   python -m dealwatch.cli watch list
-  python -m dealwatch.cli scan [--watch ID ...] [--source S ...]
+  python -m dealwatch.cli scan [--watch ID ...] [--source S ...] [--dry-run]
       Run one scan now against the app database (skipped if a scan is already running).
+  python -m dealwatch.cli telegram-test
 """
 
 import argparse
@@ -13,7 +14,7 @@ import json
 import logging
 import sys
 
-from . import config, db
+from . import config, db, telegram
 from .models import Watch
 from .runner import market, run_scan
 from .scoring import Rules, classify
@@ -82,12 +83,20 @@ def watch_list(args) -> int:
 
 def scan(args) -> int:
     cfg = config.load()
-    r = run_scan(_db(), cfg.data_dir / "scan.lock", watch_ids=args.watch or None, source_names=args.source or None)
+    notifier = telegram.from_config(cfg, lambda: db.connect(cfg.db_path), dry_run=args.dry_run)
+    r = run_scan(_db(), cfg.data_dir / "scan.lock", notifier, watch_ids=args.watch or None,
+                 source_names=args.source or None)
     if r.skipped:
         print("a scan is already running")
         return 1
     print(json.dumps(r.__dict__, indent=1))
     return 0
+
+
+def telegram_test(args) -> int:
+    ok, reason = telegram.from_config(config.load()).test()
+    print("sent" if ok else f"not sent: {reason}")
+    return 0 if ok else 1
 
 
 def _db():
@@ -126,7 +135,9 @@ def main(argv=None) -> int:
     sc = sub.add_parser("scan", help="run one scan now")
     sc.add_argument("--watch", type=int, action="append")
     sc.add_argument("--source", action="append", choices=list(registry()))
+    sc.add_argument("--dry-run", action="store_true", help="print Telegram messages instead of sending")
     sc.set_defaults(fn=scan)
+    sub.add_parser("telegram-test", help="send a Telegram test message").set_defaults(fn=telegram_test)
 
     args = p.parse_args(argv)
     return args.fn(args)

@@ -18,3 +18,7 @@ h1 { font-size: 1.4rem; }
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--line); }
+.tools { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+button { font: inherit; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: .4rem;
+         background: transparent; color: var(--fg); cursor: pointer; }
+.ok { color: #15803d; } .err { color: var(--accent); }

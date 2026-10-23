@@ -1,16 +1,17 @@
 """FastAPI app: web UI and /healthz."""
 
+import html
 import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db
+from . import config, db, telegram
 from .scheduler import Scheduler
 
 HERE = Path(__file__).parent
@@ -25,9 +26,10 @@ async def lifespan(app: FastAPI):
     db.migrate(conn)
     app.state.cfg = cfg
     app.state.db = conn
+    app.state.notifier = telegram.from_config(cfg, lambda: db.connect(cfg.db_path))
     app.state.scheduler = None
     if os.environ.get("SCHEDULER", "on") != "off":
-        app.state.scheduler = Scheduler(cfg)
+        app.state.scheduler = Scheduler(cfg, app.state.notifier)
         app.state.scheduler.start()
     yield
     if app.state.scheduler:
@@ -54,3 +56,11 @@ def dashboard(request: Request):
         "SELECT id, name, enabled, typical_override FROM watches ORDER BY name"
     ).fetchall()
     return templates.TemplateResponse(request, "dashboard.html", {"watches": watches})
+
+
+@app.post("/telegram/test", response_class=HTMLResponse)
+def telegram_test(request: Request):
+    ok, reason = request.app.state.notifier.test()
+    if ok:
+        return '<span class="ok">Sent. Check Telegram.</span>'
+    return f'<span class="err">Not sent: {html.escape(reason)}</span>'
