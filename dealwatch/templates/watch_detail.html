@@ -11,9 +11,14 @@
 
 <dl class="stats wide">
   <div><dt>Typical price</dt><dd>{{ typical | money }}
-    <small class="muted">{% if override_used %}your override{% if learned %} · eBay says {{ learned | money }}{% endif %}{% elif learned %}eBay asking median{% else %}not learned yet{% endif %}</small></dd></div>
-  <div><dt>eBay samples</dt><dd>{{ samples }} <small class="muted">last 14 days{% if newest %} · newest {{ newest | ago }}{% endif %}</small></dd></div>
-  <div><dt>Alerts when</dt><dd><small>≥{{ ((1 - w.deal_ratio) * 100) | round | int }}% below on eBay, ≥{{ ((1 - w.local_deal_ratio) * 100) | round | int }}% locally{% if w.max_price %}, or ≤{{ w.max_price | money }}{% endif %}</small></dd></div>
+    {% set basis = 'store prices' if w.typical_basis == 'store' else 'eBay' %}
+    <small class="muted">{% if override_used %}your override{% if learned %} · {{ basis }} say {{ learned | money }}{% endif %}{% elif learned %}{{ 'median store price' if w.typical_basis == 'store' else 'eBay asking median' }}{% else %}not learned yet{% endif %}</small></dd></div>
+  <div><dt>{{ 'Store' if w.typical_basis == 'store' else 'eBay' }} samples</dt><dd>{{ samples }} <small class="muted">last {{ 30 if w.typical_basis == 'store' else 14 }} days{% if newest %} · newest {{ newest | ago }}{% endif %}</small></dd></div>
+  <div><dt>Alerts when</dt><dd><small>{% set parts = [] %}
+    {% if 'ebay' in w.sources %}{% set _ = parts.append('≥' ~ ((1 - w.deal_ratio) * 100) | round | int ~ '% below on eBay') %}{% endif %}
+    {% if w.sources | select('in', ['craigslist', 'offerup', 'rss']) | list %}{% set _ = parts.append('≥' ~ ((1 - w.local_deal_ratio) * 100) | round | int ~ '% locally') %}{% endif %}
+    {% if w.sources | select('in', STORE_SOURCES) | list %}{% set _ = parts.append('≥' ~ ((1 - w.retail_deal_ratio) * 100) | round | int ~ '% at stores') %}{% endif %}
+    {% if w.max_price %}{% set _ = parts.append('≤' ~ (w.max_price | money)) %}{% endif %}{{ parts | join(', ') }}</small></dd></div>
   <div><dt>Searches</dt><dd><small>{{ w.search_queries | join(' · ') }}</small></dd></div>
   <div><dt>Alerts go to</dt><dd><small>{% if people %}{{ people | map(attribute='name') | join(', ') }}{% else %}<span class="warn-text">nobody — <a href="/watches/{{ w.id }}/edit">pick people</a></span>{% endif %}</small></dd></div>
 </dl>

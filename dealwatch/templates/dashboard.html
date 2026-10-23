@@ -41,7 +41,7 @@
     <p class="last-alert"><span class="tier {{ c.alert.tier | lower | replace(' ', '-') }}">{{ c.alert.tier }}</span>
       {{ c.alert.price_total | money }} · {{ c.alert.title[:60] }} <span class="muted">{{ c.alert.sent_at | ago }}</span></p>
     {% elif not c.typical and not w.max_price %}
-    <p class="hint">Won't alert until it has 6 eBay samples, an override or a max price.</p>
+    <p class="hint">Won't alert until it has 6 {{ 'store price' if w.typical_basis == 'store' else 'eBay' }} samples, an override or a max price.</p>
     {% endif %}
     <footer>
       <a class="btn" href="/watches/{{ w.id }}/edit">Edit</a>

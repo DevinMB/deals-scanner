@@ -26,6 +26,8 @@ class Watch:
     bundle_enabled: bool = False
     bundle_regex: str | None = None
     bundle_ratio: float = 0.85
+    typical_basis: str = "ebay"  # learn the typical price from "ebay" (used asking prices) or "store" prices
+    retail_deal_ratio: float = 0.75
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Watch":

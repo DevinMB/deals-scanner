@@ -13,7 +13,9 @@
       {{ job.rows | length - job.matches | length }} excluded.
       {% if job.typical %}
         Typical price: <strong>{{ job.typical | money }}</strong>
-        ({% if job.watch.override_enabled and job.watch.typical_override %}your override{% if job.learned %}; eBay suggests {{ job.learned | money }}{% endif %}{% else %}eBay asking median of {{ job.samples }} clean listings{% endif %}).
+        ({% if job.watch.override_enabled and job.watch.typical_override %}your override{% if job.learned %}; listings suggest {{ job.learned | money }}{% endif %}{% elif job.watch.typical_basis == 'store' %}median store price of {{ job.samples }} listings{% else %}eBay asking median of {{ job.samples }} clean listings{% endif %}).
+      {% elif job.watch.typical_basis == 'store' %}
+        <span class="warn-text">Typical price will be learned from Amazon/Walmart prices over the next scans ({{ job.samples }} of 6 samples so far). Until then it only alerts on an override or max price.</span>
       {% elif 'ebay' not in job.watch.sources %}
         <span class="warn-text">eBay is off for this watch, so no typical price can be learned: it won't alert unless you set an override or max price.</span>
       {% else %}

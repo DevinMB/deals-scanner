@@ -55,6 +55,8 @@ class Source:
     name: str = ""
     label: str = ""
     local: bool = True        # private-sale source: uses local_deal_ratio
+    store: bool = False       # retail store: uses retail_deal_ratio; typical price can be learned from it
+    learn_prices: bool = True  # store prices that count toward a "store prices" typical (not Slickdeals' deals)
     needs_browser: bool = False
 
     def __init__(self, ctx: Context):
@@ -105,8 +107,15 @@ def miles(home: dict, lat: float, lon: float) -> float:
 
 
 def registry() -> dict[str, type[Source]]:
+    from .amazon import Amazon
     from .craigslist import Craigslist
     from .ebay import Ebay
     from .offerup import OfferUp
     from .rss import Rss
-    return {s.name: s for s in (Ebay, Craigslist, OfferUp, Rss)}
+    from .slickdeals import Slickdeals
+    from .walmart import Walmart
+    return {s.name: s for s in (Ebay, Craigslist, OfferUp, Rss, Amazon, Walmart, Slickdeals)}
+
+
+USED_SOURCES = ["ebay", "craigslist", "offerup", "rss"]
+STORE_SOURCES = ["amazon", "walmart", "slickdeals"]

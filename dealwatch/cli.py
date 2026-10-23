@@ -77,7 +77,7 @@ def watch_list(args) -> int:
     rules = Rules.from_settings(load_settings(conn))
     for r in conn.execute("SELECT * FROM watches ORDER BY id"):
         w = Watch.from_row(r)
-        med, n, newest = market(conn, w.id, rules)
+        med, n, newest = market(conn, w.id, rules, basis=w.typical_basis)
         override = f"${w.typical_override:,.0f}{'' if w.override_enabled else ' (off)'}" if w.typical_override else "-"
         print(f"{w.id:>3} {'on ' if w.enabled else 'off'} {w.name:<28} learned={f'${med:,.0f}' if med else '-'} "
               f"({n} samples) override={override} max={w.max_price or '-'} sources={','.join(w.sources)}")

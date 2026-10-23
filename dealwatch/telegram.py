@@ -34,6 +34,8 @@ def format_alert(a: dict, base_url: str | None = None) -> str:
     else:
         sub = f"{price}, at or under your ${a['max_price'] * n:,.0f} max price"
     lines = [head, sub, a["title"][:200], f"Source: {a['source']}" + (f" · {a['location']}" if a.get("location") else "")]
+    if a.get("store_typical"):
+        lines.append(f"Amazon lists its typical price as ${a['store_typical']:,.0f}")
     if a.get("condition"):
         lines.append(f"Condition: {a['condition']}" + (" · Best Offer" if a.get("best_offer") else ""))
     if a.get("seller"):

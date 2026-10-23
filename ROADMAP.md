@@ -26,3 +26,9 @@ Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7n
   excludes and a rough price as tickable chips; Apply merges them in, nothing is overwritten. qwen3.5:4b (~2.5 s)
   beat the 9B, which invented models and copied the prompt example. Suggestions still need a human glance.
 - 2026-10-23: GPU import moved off the dashboard into Settings; user trimmed watches to RTX 3090, Aeron, X100V.
+- 2026-10-23: Store sources added (user asked): Amazon (shared browser), Walmart (page JSON over HTTP), Slickdeals
+  keyword RSS. Per watch: "Typical price from" eBay or Amazon/Walmart prices (one sample per product per day,
+  30-day window; Slickdeals never counts since its prices are already deals), and a store deal level (default 25%
+  below). Prices compared per listing (user's choice), so store watches should name the pack size.
+  Amazon and Walmart block intermittently: both detect the block page, back off and retry once; Walmart flagged
+  this IP after a night of testing.

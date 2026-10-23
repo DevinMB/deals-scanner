@@ -275,3 +275,33 @@ def test_watch_with_no_recipients_sends_nothing(conn, tmp_path):
     n = RecordingNotifier()
     scan(conn, tmp_path, n)
     assert n.alerts == []
+
+
+class FakeAmazon(Source):
+    name, label, local, store = "amazon", "Amazon", False, True
+    listings: list = []
+
+    def search(self, query, watch):
+        return list(FakeAmazon.listings)
+
+
+def amz(i, price, title="Filtrete 16x25x1 MPR 1000 6 pack"):
+    return Listing("amazon", f"a{i}", title, f"https://www.amazon.com/dp/a{i}", price)
+
+
+def test_store_watch_learns_store_prices_and_uses_store_deal_level(conn, tmp_path):
+    REG["amazon"] = FakeAmazon
+    try:
+        add_watch(conn, name="Filters", search_queries=json.dumps(["filtrete 16x25x1"]), sources=json.dumps(["amazon"]),
+                  typical_basis="store", retail_deal_ratio=0.8)
+        FakeAmazon.listings = [amz(i, p) for i, p in enumerate([70, 71, 69, 72, 70, 70])]
+        n = RecordingNotifier()
+        scan(conn, tmp_path, n)
+        assert n.alerts == []  # typical learned ($70), nothing 20% below yet
+        keys = [r[0] for r in conn.execute("SELECT source_id FROM price_samples")]
+        assert len(keys) == 6 and all(k.startswith("amazon:a") and "@" in k for k in keys)
+        FakeAmazon.listings = [amz(9, 55)]  # 21% below: a deal at stores, though not 40% off
+        scan(conn, tmp_path, n)
+        assert [(a["tier"], a["typical_src"]) for a in n.alerts] == [("DEAL", "store prices, 7 samples")]
+    finally:
+        REG.pop("amazon")

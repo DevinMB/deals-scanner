@@ -22,7 +22,7 @@ from .models import Watch
 from .runner import SOURCE_ORDER, iso, market
 from .scheduler import Scheduler
 from .scoring import DEFAULTS, Rules, classify, effective_typical
-from .sources import registry
+from .sources import STORE_SOURCES, USED_SOURCES, registry
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
@@ -97,7 +97,7 @@ def pct_below(ratio) -> str:
 
 
 templates.env.filters.update(ago=ago, money=money, pct_below=pct_below, fromjson=json.loads)
-templates.env.globals.update(SOURCE_LABELS=SOURCE_LABELS)
+templates.env.globals.update(SOURCE_LABELS=SOURCE_LABELS, USED_SOURCES=USED_SOURCES, STORE_SOURCES=STORE_SOURCES)
 
 
 def page(request: Request, name: str, **ctx):
@@ -152,7 +152,7 @@ def dashboard(request: Request):
     cards = []
     for row in c.execute("SELECT * FROM watches ORDER BY enabled DESC, name COLLATE NOCASE"):
         w = Watch.from_row(row)
-        med, n, newest = market(c, w.id, rules)
+        med, n, newest = market(c, w.id, rules, basis=w.typical_basis)
         last = c.execute("SELECT MAX(finished_at) FROM runs WHERE watch_id = ? AND error IS NULL AND listings_found > 0",
                          (w.id,)).fetchone()[0]
         new24 = c.execute("SELECT COUNT(*) FROM listings WHERE watch_id = ? AND first_seen >= ?",
@@ -258,7 +258,14 @@ def watch_from_form(form) -> tuple[dict, list[str]]:
         "bundle_enabled": int(bool(form.get("bundle_enabled"))),
         "bundle_regex": form.get("bundle_regex", "").strip() or None,
         "bundle_ratio": below("bundle_pct", 15),
+        "retail_deal_ratio": below("retail_pct", 25),
+        "typical_basis": "store" if form.get("typical_basis") == "store" else "ebay",
     }
+    stores = [n for n in d["sources"] if n in STORE_SOURCES]
+    if d["typical_basis"] == "ebay" and "ebay" not in d["sources"] and stores:
+        d["typical_basis"] = "store"  # nothing to learn from on eBay; store prices are the only option
+    if d["typical_basis"] == "store" and not [n for n in stores if n != "slickdeals"]:
+        errors.append("To learn a typical price from stores, tick Amazon or Walmart (Slickdeals prices are already deals).")
     if not d["name"]:
         errors.append("Give the watch a name.")
     if not d["search_queries"]:
@@ -382,7 +389,7 @@ def watch_detail(request: Request, wid: int, all: int = 0):
     c = conn(request)
     w = get_watch(request, wid)
     s, rules = rules_for(request)
-    med, n, newest = market(c, wid, rules)
+    med, n, newest = market(c, wid, rules, basis=w.typical_basis)
     typical = effective_typical(med, w)
     since = iso(datetime.now(timezone.utc) - timedelta(hours=48))
     rows = c.execute("SELECT * FROM listings WHERE watch_id = ? AND last_seen >= ? AND available = 1", (wid, since)).fetchall()

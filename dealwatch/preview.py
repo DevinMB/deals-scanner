@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from . import db, settings as settings_mod
 from .config import Config
 from .models import Watch
-from .runner import SOURCE_ORDER, Hit, RunResult, scan_lock, score_hit
+from .runner import SOURCE_ORDER, Hit, RunResult, sample_key, scan_lock, score_hit
 from .scoring import Rules, effective_typical, explain, is_market_sample, looks_like_bundle, typical_price
 from .sources import Context, registry
 
@@ -135,8 +135,9 @@ def _search(job: PreviewJob, cfg: Config) -> None:
     finally:
         if browser:
             browser.close()
-    prices = [h.listing.price_total for h, _ in hits
-              if h.source.name == "ebay" and h.listing.price_total and is_market_sample(h.match, h.listing.location)]
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    prices = [h.listing.price_total for h, _ in hits if sample_key(h, now)]
     job.learned, job.samples = typical_price(prices, rules)
     job.typical = effective_typical(job.learned, w)
     matched = sorted(h.listing.price_total for h, _ in hits if h.listing.price_total)

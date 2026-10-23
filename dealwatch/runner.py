@@ -25,7 +25,7 @@ from .sources import Context, Listing, Source, registry
 log = logging.getLogger("dealwatch.runner")
 
 # eBay first: it feeds the typical prices that score everything else
-SOURCE_ORDER = ["ebay", "offerup", "craigslist", "rss"]
+SOURCE_ORDER = ["ebay", "amazon", "walmart", "offerup", "craigslist", "slickdeals", "rss"]
 TIER_ORDER = {"DEAL": 0, "BUNDLE DEAL": 0, "LONG SHOT": 1}
 HEALTH_STREAK = 3
 RECHECK_UNAVAILABLE = timedelta(hours=2)
@@ -177,16 +177,36 @@ def store(conn: sqlite3.Connection, h: Hit, now: str) -> None:
          l.seller_fb_count, l.seller_fb_pct, l.condition, l.extra.get("body"), now, now)).fetchone()[0]
 
 
+def sample_key(h: Hit, now: datetime) -> str | None:
+    """price_samples key for a hit, or None if it doesn't count toward this watch's typical price.
+
+    eBay basis: one sample per listing (its current asking price). Store basis: one sample per product per day,
+    so the median tracks what the item usually costs over the window and a price drop stands out against it.
+    """
+    l, w = h.listing, h.watch
+    if not l.price_total:
+        return None
+    if w.typical_basis == "store":
+        if h.source.store and h.source.learn_prices and is_market_sample(h.match, l.location, store=True):
+            return f"{l.source}:{l.source_id}@{now:%Y-%m-%d}"
+        return None
+    return l.source_id if h.source.name == "ebay" and is_market_sample(h.match, l.location) else None
+
+
+def window_days(basis: str, rules: Rules) -> int:
+    return rules.store_window_days if basis == "store" else rules.market_window_days
+
+
 def learn_prices(conn: sqlite3.Connection, hits: list[Hit], rules: Rules, now: datetime) -> dict[int, tuple]:
-    """Add clean eBay asking prices to each watch's pool; return watch_id -> (learned median, samples)."""
+    """Add each watch's clean price samples to its pool; return watch_id -> (learned median, samples)."""
     for h in hits:
-        if h.source.name == "ebay" and h.listing.price_total and is_market_sample(h.match, h.listing.location):
+        if key := sample_key(h, now):
             conn.execute("INSERT INTO price_samples (watch_id, source_id, price, first_seen) VALUES (?, ?, ?, ?)"
                          " ON CONFLICT (watch_id, source_id) DO UPDATE SET price = excluded.price",
-                         (h.watch.id, h.listing.source_id, h.listing.price_total, iso(now)))
-    since = iso(now - timedelta(days=rules.market_window_days))
+                         (h.watch.id, key, h.listing.price_total, iso(now)))
     out = {}
-    for wid in {h.watch.id for h in hits}:
+    for wid, basis in {(h.watch.id, h.watch.typical_basis) for h in hits}:
+        since = iso(now - timedelta(days=window_days(basis, rules)))
         prices = [r[0] for r in conn.execute("SELECT price FROM price_samples WHERE watch_id = ? AND first_seen >= ?",
                                              (wid, since))]
         out[wid] = typical_price(prices, rules)
@@ -197,9 +217,10 @@ def learn_prices(conn: sqlite3.Connection, hits: list[Hit], rules: Rules, now: d
     return out
 
 
-def market(conn: sqlite3.Connection, watch_id: int, rules: Rules, now: datetime | None = None) -> tuple:
+def market(conn: sqlite3.Connection, watch_id: int, rules: Rules, now: datetime | None = None,
+           basis: str = "ebay") -> tuple:
     """(learned median or None, sample count, newest sample time) for the UI."""
-    since = iso((now or datetime.now(timezone.utc)) - timedelta(days=rules.market_window_days))
+    since = iso((now or datetime.now(timezone.utc)) - timedelta(days=window_days(basis, rules)))
     rows = conn.execute("SELECT price, first_seen FROM price_samples WHERE watch_id = ? AND first_seen >= ?",
                         (watch_id, since)).fetchall()
     med, n = typical_price([r[0] for r in rows], rules)
@@ -227,7 +248,7 @@ def score_hit(h: Hit, typical: float | None, rules: Rules) -> Score | None:
         return None
     h.listing.price_total = total
     l = h.listing
-    return score(total, h.match, h.watch, rules, typical, local=h.source.local,
+    return score(total, h.match, h.watch, rules, typical, local=h.source.local, store=h.source.store,
                  seller_trusted=seller_ok(l.seller_fb_count, l.seller_fb_pct, rules))
 
 
@@ -239,6 +260,7 @@ def alert_payload(h: Hit) -> dict:
             "source": h.source.label, "location": l.location, "seller": l.seller, "condition": l.condition,
             "note": l.extra.get("note"), "best_offer": l.extra.get("best_offer", False),
             "typical_src": h.typical_src, "max_price": h.watch.max_price,
+            "store_typical": l.extra.get("store_typical"),
             "quiet": s.tier == "LONG SHOT" and h.watch.quiet_longshots}
 
 
@@ -337,7 +359,8 @@ def update_health(conn, s: dict, src: Source, result: RunResult, notifier: Notif
 def prune(conn: sqlite3.Connection, s: dict, rules: Rules, now: datetime) -> None:
     conn.execute("DELETE FROM listings WHERE last_seen < ? AND id NOT IN (SELECT listing_id FROM alerts)",
                  (iso(now - timedelta(days=s["listing_retention_days"])),))
-    conn.execute("DELETE FROM price_samples WHERE first_seen < ?", (iso(now - timedelta(days=rules.market_window_days)),))
+    keep = max(rules.market_window_days, rules.store_window_days)
+    conn.execute("DELETE FROM price_samples WHERE first_seen < ?", (iso(now - timedelta(days=keep)),))
 
 
 # ---------- run ----------
@@ -395,7 +418,8 @@ def _run(conn, notifier, result, watch_ids, source_names, reg, sleep):
             med, n = learned.get(h.watch.id, (None, 0))
             typical = effective_typical(med, h.watch)
             h.typical_src = ("your override" if h.watch.override_enabled and h.watch.typical_override is not None
-                             else f"eBay asking, {n} samples" if typical is not None else "")
+                             else f"{'store prices' if h.watch.typical_basis == 'store' else 'eBay asking'}, {n} samples"
+                             if typical is not None else "")
             h.score = score_hit(h, typical, rules)
             sc = h.score
             conn.execute("UPDATE listings SET tier = ?, ratio = ?, reasons = ?, price_total = ? WHERE id = ?",

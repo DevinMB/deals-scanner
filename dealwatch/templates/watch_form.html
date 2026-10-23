@@ -33,10 +33,20 @@
       <textarea name="exclude_terms" rows="4" placeholder="size a&#10;mesh only">{{ w.exclude_terms | join('\n') }}</textarea>
     </label>
     <fieldset class="checks">
-      <legend>Sources</legend>
-      {% for n, label in SOURCE_LABELS.items() %}
-      <label class="check"><input type="checkbox" name="src_{{ n }}" {% if n in w.sources %}checked{% endif %}> {{ label }}</label>
+      <legend>Where to look</legend>
+      <span class="src-group">Used &amp; local</span>
+      {% for n in USED_SOURCES %}
+      <label class="check"><input type="checkbox" name="src_{{ n }}" {% if n in w.sources %}checked{% endif %}> {{ SOURCE_LABELS[n] }}</label>
       {% endfor %}
+      <span class="src-group">Stores</span>
+      {% for n in STORE_SOURCES %}
+      <label class="check"><input type="checkbox" name="src_{{ n }}" {% if n in w.sources %}checked{% endif %}> {{ SOURCE_LABELS[n] }}</label>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="checks">
+      <legend>Typical price from</legend>
+      <label class="check"><input type="radio" name="typical_basis" value="ebay" {% if w.typical_basis != 'store' %}checked{% endif %}> Used eBay listings <small>(best for used gear)</small></label>
+      <label class="check"><input type="radio" name="typical_basis" value="store" {% if w.typical_basis == 'store' %}checked{% endif %}> Amazon &amp; Walmart prices <small>(best for things you buy new; learned over 30 days)</small></label>
     </fieldset>
   </section>
 
@@ -47,6 +57,8 @@
         <span class="suffix"><input name="deal_pct" type="number" min="0" max="100" value="{{ below(w.deal_ratio) }}">%</span></label>
       <label>Deal on local sources at <small>Craigslist, OfferUp, Reddit</small>
         <span class="suffix"><input name="local_deal_pct" type="number" min="0" max="100" value="{{ below(w.local_deal_ratio) }}">%</span></label>
+      <label>Deal at stores at <small>Amazon, Walmart, Slickdeals; stores rarely go 40% off</small>
+        <span class="suffix"><input name="retail_pct" type="number" min="0" max="100" value="{{ below(w.retail_deal_ratio) }}">%</span></label>
       <label>Max price <small>always a deal at or under this, even before a typical price is learned</small>
         <span class="prefix">$<input name="max_price" inputmode="decimal" value="{{ '%.0f' % w.max_price if w.max_price else '' }}"></span></label>
       <label>Typical price override <small>replaces the learned eBay price while ticked</small>

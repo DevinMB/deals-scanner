@@ -35,6 +35,7 @@ class Rules:
     min_seller_feedback: int
     min_seller_positive_pct: float
     market_window_days: int
+    store_window_days: int
     min_market_samples: int
     cheap_outlier_fraction: float
     bundle: dict
@@ -46,6 +47,7 @@ class Rules:
         return cls(hard=_rx(s["hard_blacklist"]), soft=_rx(s["soft_flags"]), longshot_floor=s["longshot_floor"],
                    min_seller_feedback=s["min_seller_feedback"], min_seller_positive_pct=s["min_seller_positive_pct"],
                    market_window_days=s["market_window_days"], min_market_samples=s["min_market_samples"],
+                   store_window_days=s["store_window_days"],
                    cheap_outlier_fraction=s["cheap_outlier_fraction"],
                    bundle={k: re.compile(v) for k, v in s["bundle"].items() if not k.startswith("_")},
                    filler_words=s["filler_words"])
@@ -66,12 +68,18 @@ class Score:
     reasons: list[str]
 
 
+def query_words(watch: Watch) -> list[str]:
+    """Words of the first search query, punctuation dropped ("filter," -> "filter"; "16x25x1" and "2.0" kept)."""
+    q = watch.search_queries[0].lower() if watch.search_queries else ""
+    return re.findall(r"[a-z0-9]+(?:[.\-'/][a-z0-9]+)*", q)
+
+
 def find_match(watch: Watch, text: str) -> int | None:
     """Start of the watch's match in text, or None. Default rule: every word of the first search query."""
     if watch.include_regex:
         m = re.search(watch.include_regex, text, re.I)
         return m.start() if m else None
-    words = watch.search_queries[0].lower().split() if watch.search_queries else []
+    words = query_words(watch)
     starts = []
     for w in words:
         m = re.search(rf"(?<!\w){re.escape(w)}(?!\w)", text)
@@ -126,7 +134,7 @@ def explain(title: str, watch: Watch, rules: Rules, body: str = "") -> tuple[Mat
 def _missing(watch: Watch, t: str) -> str:
     if watch.include_regex:
         return "doesn't match the include pattern"
-    words = watch.search_queries[0].lower().split() if watch.search_queries else []
+    words = query_words(watch)
     missing = [w for w in words if not re.search(rf"(?<!\w){re.escape(w)}(?!\w)", t)]
     return "missing: " + ", ".join(f"“{w}”" for w in missing)
 
@@ -134,7 +142,7 @@ def _missing(watch: Watch, t: str) -> str:
 def _is_accessory(watch: Watch, text: str, pos: int) -> re.Match | None:
     starts = [pos]
     if not watch.include_regex and watch.search_queries:  # also check each query word ("pads for aeron")
-        for w in watch.search_queries[0].lower().split():
+        for w in query_words(watch):
             starts += [m.start() for m in re.finditer(rf"(?<!\w){re.escape(w)}(?!\w)", text)]
     return next((m for p in starts if (m := ACCESSORY_BEFORE.search(text[max(0, p - 40):p]))), None)
 
@@ -164,7 +172,7 @@ def seller_ok(fb_count: float | None, fb_pct: float | None, rules: Rules) -> boo
 
 
 def score(total: float, m: Match, watch: Watch, rules: Rules, typical: float | None, *,
-          local: bool, seller_trusted: bool = True) -> Score | None:
+          local: bool, seller_trusted: bool = True, store: bool = False) -> Score | None:
     """Tier for an all-in price, or None. typical is the per-item price (see effective_typical)."""
     if watch.max_price is not None and total <= watch.max_price * m.count:
         ratio = total / (typical * m.count) if typical else None
@@ -172,8 +180,10 @@ def score(total: float, m: Match, watch: Watch, rules: Rules, typical: float | N
     if not typical:
         return None
     ratio = total / (typical * m.count)
-    limit = watch.bundle_ratio if m.is_bundle else watch.local_deal_ratio if local else watch.deal_ratio
-    longshot_limit = watch.bundle_ratio if m.is_bundle else watch.deal_ratio
+    # Stores rarely go 40% off, so they have their own (usually gentler) deal level
+    base = watch.retail_deal_ratio if store else watch.deal_ratio
+    limit = watch.bundle_ratio if m.is_bundle else watch.local_deal_ratio if local else base
+    longshot_limit = watch.bundle_ratio if m.is_bundle else base
     if ratio > longshot_limit or ratio < rules.longshot_floor:
         return None
     reasons = []
@@ -190,9 +200,10 @@ def score(total: float, m: Match, watch: Watch, rules: Rules, typical: float | N
     return Score("BUNDLE DEAL" if m.is_bundle else "DEAL", ratio, typical, [])
 
 
-def is_market_sample(m: Match | None, location: str) -> bool:
-    """Clean, single-item, US listing: counts toward the watch's typical price."""
-    return bool(m and not m.is_bundle and not m.flags and m.count == 1 and "united states" in (location or "").lower())
+def is_market_sample(m: Match | None, location: str, store: bool = False) -> bool:
+    """Clean, single-item listing (US-located, for eBay): counts toward the watch's typical price."""
+    return bool(m and not m.is_bundle and not m.flags and m.count == 1
+                and (store or "united states" in (location or "").lower()))
 
 
 def typical_price(prices: list[float], rules: Rules) -> tuple[float | None, int]:

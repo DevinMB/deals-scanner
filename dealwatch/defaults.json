@@ -134,5 +134,6 @@
   "cheap_outlier_fraction": 0.25,
   "ollama_url": "",
   "ollama_model": "qwen3.5:4b",
-  "llm_check_enabled": true
+  "llm_check_enabled": true,
+  "store_window_days": 30
 }

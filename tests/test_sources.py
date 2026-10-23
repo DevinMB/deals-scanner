@@ -128,3 +128,47 @@ def test_local_query_broadens_specific_searches():
     assert local_query("radeon pro w7900 48gb") == "pro w7900"
     assert local_query("herman miller aeron") == "herman miller aeron"
     assert local_query("nvidia") == "nvidia"  # never empty
+
+
+def test_walmart_parses_next_data(monkeypatch):
+    from dealwatch.sources import walmart
+    data = {"props": {"pageProps": {"initialData": {"searchResult": {"itemStacks": [{"items": [
+        {"__typename": "Product", "usItemId": "1", "name": "Filtrete 16x25x1 MPR 1000, 6 Filters", "price": 64.97,
+         "canonicalUrl": "/ip/filtrete/1?classType=REGULAR", "sellerName": "Walmart.com",
+         "availabilityStatusV2": {"value": "IN_STOCK"}},
+        {"__typename": "Product", "usItemId": "2", "name": "No price variant", "price": 0, "canonicalUrl": "/ip/2"},
+        {"__typename": "Product", "usItemId": "3", "name": "Gone", "price": 10, "canonicalUrl": "/ip/3",
+         "availabilityStatusV2": {"value": "OUT_OF_STOCK"}},
+        {"__typename": "AdPlaceholder"}]}]}}}}}
+    page = f'<html><script id="__NEXT_DATA__" type="application/json">{json.dumps(data)}</script></html>'
+    monkeypatch.setattr(walmart, "http_get", lambda url, **p: type("R", (), {"text": page})())
+    got = walmart.Walmart(Context()).search("filtrete", AERON)
+    assert [(l.source_id, l.price_total, l.url) for l in got] == [("1", 64.97, "https://www.walmart.com/ip/filtrete/1")]
+
+
+def test_amazon_parse_card():
+    from dealwatch.sources.amazon import Amazon
+    card = {"asin": "B07FP5X3JM", "title": "Sponsored\nFiltrete\n16x25x1 Air Filter, MERV 11, MPR 1000, 6 HVAC Filters",
+            "price": "$70.39", "priceText": "Price, product page\n$70.39\n($11.73/count)\nTypical: $79.99"}
+    l = Amazon._parse(card)
+    assert l.title == "Filtrete 16x25x1 Air Filter, MERV 11, MPR 1000, 6 HVAC Filters" and l.price_total == 70.39
+    assert l.extra == {"sponsored": True, "store_typical": 79.99} and l.url == "https://www.amazon.com/dp/B07FP5X3JM"
+    assert Amazon._parse({**card, "price": ""}) is None
+
+
+def test_slickdeals_rss(monkeypatch):
+    from dealwatch.sources import slickdeals
+    rss = b"""<?xml version="1.0"?><rss><channel><title>search</title>
+    <item><title>Filtrete 20x25x1 MERV 12 MPR 1500, 6-Pack $66.25 at Amazon</title><link>https://slickdeals.net/f/19001-filtrete</link></item>
+    <item><title>3M MPR 2500 Filters 4-Pack $44.99 Instore @ Costco. $49.99 on website.</title><link>https://slickdeals.net/f/19002-3m</link></item>
+    <item><title>Free filter guide</title><link>https://slickdeals.net/f/19003</link></item></channel></rss>"""
+    monkeypatch.setattr(slickdeals, "http_get", lambda url, **p: type("R", (), {"content": rss})())
+    got = slickdeals.Slickdeals(Context()).search("filtrete", AERON)
+    assert [(l.source_id, l.price_total, l.location) for l in got] == [("19001-filtrete", 66.25, "Amazon"), ("19002-3m", 44.99, "Costco")]
+
+
+def test_query_words_ignore_punctuation():
+    from dealwatch.scoring import Rules, classify, query_words
+    w = Watch(id=9, name="Filtrete", search_queries=["Filtrete 16x25x1 Air Filter, MERV 11, MPR 1000"])
+    assert query_words(w) == ["filtrete", "16x25x1", "air", "filter", "merv", "11", "mpr", "1000"]
+    assert classify("Filtrete 16x25x1 Air Filter MPR 1000 MERV 11 (6 pack)", w, Rules.from_settings())
