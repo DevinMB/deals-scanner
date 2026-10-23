@@ -235,3 +235,14 @@ def test_recent_chats_offers_new_people_only(client, monkeypatch):
                                   {"chat_id": "888", "name": "Sam Lee", "username": "samlee"}], ""))
     html = client.get("/telegram/recent").text
     assert 'value="888"' in html and 'value="777"' not in html and "@samlee" in html
+
+
+def test_dashboard_deal_count_follows_current_filters_and_sorts_deals_first(client):
+    quiet = create(client, name="Aaa quiet watch", search_queries="steelcase leap")
+    wid = create(client)
+    seed(client, wid)  # one DEAL-tier listing: "Herman Miller Aeron Size B graphite"
+    page = client.get("/").text
+    assert page.index("Herman Miller Aeron") < page.index("Aaa quiet watch")  # deals first despite the name
+    assert '<dt>Deals now</dt><dd>1</dd>' in page
+    client.post(f"/watches/{wid}/exclude", data={"word": "graphite"})
+    assert '<dt>Deals now</dt><dd>1</dd>' not in client.get("/").text

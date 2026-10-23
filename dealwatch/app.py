@@ -157,13 +157,21 @@ def dashboard(request: Request):
                          (w.id,)).fetchone()[0]
         new24 = c.execute("SELECT COUNT(*) FROM listings WHERE watch_id = ? AND first_seen >= ?",
                           (w.id, day_ago)).fetchone()[0]
-        deals = c.execute("SELECT COUNT(*) FROM listings WHERE watch_id = ? AND tier IS NOT NULL AND last_seen >= ?",
-                          (w.id, day_ago)).fetchone()[0]
+        # Same rule as the watch page: re-check against the current filters, and drop what Ollama called a part
+        deals = sum(1 for t, b in c.execute("SELECT title, body FROM listings WHERE watch_id = ? AND tier IS NOT NULL "
+                                            "AND last_seen >= ? AND available = 1 AND COALESCE(llm_verdict, 'item') = 'item'",
+                                            (w.id, day_ago)) if classify(t, w, rules, b or ""))
+        problems = [f"{SOURCE_LABELS.get(r[0], r[0])}: {r[1][:80]}" for r in c.execute(
+            "SELECT source, error FROM runs WHERE id IN (SELECT MAX(id) FROM runs WHERE watch_id = ? GROUP BY source) "
+            "AND error IS NOT NULL", (w.id,)) if w.enabled and r[0] in w.sources]
         alert = c.execute("SELECT a.tier, a.price_total, a.sent_at, l.title FROM alerts a JOIN listings l ON l.id = a.listing_id"
                           " WHERE a.watch_id = ? AND a.telegram_ok = 1 ORDER BY a.sent_at DESC LIMIT 1", (w.id,)).fetchone()
-        cards.append({"w": w, "people": [r["name"] for r in recipients.for_watch(c, w.id)], "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
+        cards.append({"w": w, "problems": problems, "people": [r["name"] for r in recipients.for_watch(c, w.id)], "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
                       "override_used": w.override_enabled and w.typical_override is not None,
                       "last_scan": last, "new24": new24, "deals": deals, "alert": alert})
+    # Live deals first, then recent alerts, then the rest; paused watches last
+    cards.sort(key=lambda cd: (not cd["w"].enabled, -cd["deals"], -(_parse(cd["alert"]["sent_at"]).timestamp()
+               if cd["alert"] else 0), cd["w"].name.lower()))
     names = {cd["w"].name.lower() for cd in cards}
     gpu_missing = sum(1 for m in gpu_import.GPU["models"] if m["name"].lower() not in names)
     return page(request, "dashboard.html", cards=cards, badges=health_badges(s), last_run=s.get("last_run"),

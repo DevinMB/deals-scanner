@@ -31,6 +31,7 @@ class PreviewJob:
     progress: list[str] = field(default_factory=list)
     rows: list[dict] = field(default_factory=list)
     learned: float | None = None
+    match_median: float | None = None  # median price of all matches, as a starting point for an override
     samples: int = 0
     typical: float | None = None
     error: str | None = None
@@ -138,6 +139,9 @@ def _search(job: PreviewJob, cfg: Config) -> None:
               if h.source.name == "ebay" and h.listing.price_total and is_market_sample(h.match, h.listing.location)]
     job.learned, job.samples = typical_price(prices, rules)
     job.typical = effective_typical(job.learned, w)
+    matched = sorted(h.listing.price_total for h, _ in hits if h.listing.price_total)
+    if matched:
+        job.match_median = round(matched[len(matched) // 2])
     for h, row in hits:
         sc = score_hit(h, job.typical, rules)
         row["price"] = h.listing.price_total

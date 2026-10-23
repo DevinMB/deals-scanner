@@ -40,6 +40,7 @@
       <div><dt>Deals now</dt><dd>{{ c.deals }}</dd></div>
       <div><dt>Last scan</dt><dd>{{ c.last_scan | ago }}</dd></div>
     </dl>
+    {% if c.problems %}<p class="problem" title="{{ c.problems | join('\n') }}"><span class="tag warn">last scan problem</span> <small>{{ c.problems[0] }}</small></p>{% endif %}
     {% if not c.people %}<p class="hint">Alerts go to nobody. <a href="/watches/{{ w.id }}/edit">Pick people</a></p>
     {% elif c.people != ['Me'] %}<p class="muted to"><small>→ {{ c.people | join(', ') }}</small></p>{% endif %}
     {% if c.alert %}

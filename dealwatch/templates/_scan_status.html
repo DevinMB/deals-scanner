@@ -3,7 +3,7 @@
   {% if scanning %}
     <span class="spinner" aria-hidden="true"></span> Scanning… this takes a few minutes.
   {% elif last_run and last_run.finished_at %}
-    Last scan {{ last_run.finished_at | ago }} · {{ last_run.matches }} matches · {{ last_run.alerts_sent }} alerts sent
+    Last scan {{ last_run.finished_at | ago }} · {{ last_run.matches }} match{{ 'es' if last_run.matches != 1 }} · {{ last_run.alerts_sent }} alert{{ 's' if last_run.alerts_sent != 1 }} sent
     {% if last_run.timed_out %}<span class="tag warn">timed out</span>{% endif %}
   {% else %}
     No scan yet. The first one starts about 2 minutes after the app starts.

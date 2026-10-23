@@ -104,7 +104,7 @@ details.danger form { margin: .5rem .5rem 0 0; }
 .card h2 { margin: 0; font-size: 1.1rem; }
 .card h2 a { color: var(--fg); text-decoration: none; }
 .card footer { display: flex; gap: .5rem; margin-top: auto; }
-.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem 1rem; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: .5rem .75rem; margin: 0; }
 .stats.wide { grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); background: var(--surface);
               border: 1px solid var(--line); border-radius: .75rem; padding: .8rem 1rem; margin-bottom: 1rem; }
 .stats dt { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
@@ -148,7 +148,7 @@ details.add-person > summary::-webkit-details-marker { display: none; }
               border-radius: 1rem; font-weight: 400; margin: 0; cursor: pointer; }
 .chip-check:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .people-pick .manage { margin-left: .3rem; }
-.card .to { margin: 0; }
+.card .to, .card .problem { margin: 0; }
 
 /* not relevant chips */
 .nr { margin-top: .35rem; display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
@@ -182,6 +182,10 @@ figure.chart svg { width: 100%; height: auto; display: block; touch-action: pan-
   table.listings td { border: 0; padding: 0; }
   table.listings td.num { text-align: left; font-weight: 600; }
   table.listings td:nth-child(n+4) { grid-column: 1 / -1; min-width: 0; }
+  table.alerts-table tr { grid-template-columns: auto auto auto 1fr; }
+  table.alerts-table td:nth-child(4) { grid-column: auto; }
+  table.alerts-table td:nth-child(n+5) { grid-column: 1 / -1; }
+  .card { padding: .75rem .85rem; gap: .45rem; }
   .top .new { order: 2; margin-left: auto; }
   nav { order: 3; width: 100%; flex: none; }
   h1 { font-size: 1.3rem; }

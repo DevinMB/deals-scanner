@@ -14,10 +14,16 @@
       {% if job.typical %}
         Typical price: <strong>{{ job.typical | money }}</strong>
         ({% if job.watch.override_enabled and job.watch.typical_override %}your override{% if job.learned %}; eBay suggests {{ job.learned | money }}{% endif %}{% else %}eBay asking median of {{ job.samples }} clean listings{% endif %}).
+      {% elif 'ebay' not in job.watch.sources %}
+        <span class="warn-text">eBay is off for this watch, so no typical price can be learned: it won't alert unless you set an override or max price.</span>
       {% else %}
         <span class="warn-text">Only {{ job.samples }} clean eBay samples (6 needed): this watch won't alert unless you set an override or max price.</span>
       {% endif %}
     </p>
+    {% if not job.typical and job.match_median %}
+    <p>The matches' median asking price is <strong>{{ job.match_median | money }}</strong>.
+      <button type="button" class="btn small" onclick="const f = document.querySelector('input[name=typical_override]'); f.value = '{{ '%.0f' % job.match_median }}'; document.querySelector('input[name=override_enabled]').checked = true; f.focus(); this.textContent = 'Filled in: save to keep it';">Use as typical price override</button></p>
+    {% endif %}
     {% if job.failures %}<p class="warn-text">{{ job.failures | join('; ') }}</p>{% endif %}
 
     {% if job.matches %}
