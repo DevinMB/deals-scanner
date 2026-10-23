@@ -36,13 +36,13 @@
       <div><dt>Typical</dt>
         <dd>{% if c.typical %}{{ c.typical | money }}{% else %}<span class="muted">learning</span>{% endif %}
           <small class="muted">{% if c.override_used %}your override{% elif c.learned %}{{ c.samples }} samples{% else %}{{ c.samples }}/6 samples{% endif %}</small></dd></div>
-      <div><dt>New in 24 h</dt><dd>{{ c.new24 }}</dd></div>
+      <div><dt>New 24h</dt><dd>{{ c.new24 }}</dd></div>
       <div><dt>Deals now</dt><dd>{{ c.deals }}</dd></div>
       <div><dt>Last scan</dt><dd>{{ c.last_scan | ago }}</dd></div>
     </dl>
     {% if c.problems %}<p class="problem" title="{{ c.problems | join('\n') }}"><span class="tag warn">last scan problem</span> <small>{{ c.problems[0] }}</small></p>{% endif %}
     {% if not c.people %}<p class="hint">Alerts go to nobody. <a href="/watches/{{ w.id }}/edit">Pick people</a></p>
-    {% elif c.people != ['Me'] %}<p class="muted to"><small>→ {{ c.people | join(', ') }}</small></p>{% endif %}
+    {% elif not c.only_owner %}<p class="muted to"><small>→ {{ c.people | join(', ') }}</small></p>{% endif %}
     {% if c.alert %}
     <p class="last-alert"><span class="tier {{ c.alert.tier | lower | replace(' ', '-') }}">{{ c.alert.tier }}</span>
       {{ c.alert.price_total | money }} · {{ c.alert.title[:60] }} <span class="muted">{{ c.alert.sent_at | ago }}</span></p>

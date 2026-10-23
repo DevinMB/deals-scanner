@@ -214,6 +214,7 @@ def test_recipients_flow(client, monkeypatch):
     alex = db.execute("SELECT id FROM recipients WHERE name = 'Alex'").fetchone()[0]
     assert {r[0] for r in db.execute("SELECT recipient_id FROM watch_recipients WHERE watch_id = ?", (wid,))} == {1, alex}
     assert "→ Me, Alex" in client.get("/").text
+    assert "→ " not in client.get("/watches/new").text
     client.post(f"/watches/{wid}", data={**FORM, f"rcpt_{alex}": "on"})
     assert [r[0] for r in db.execute("SELECT recipient_id FROM watch_recipients WHERE watch_id = ?", (wid,))] == [alex]
     edit = client.get(f"/watches/{wid}/edit").text

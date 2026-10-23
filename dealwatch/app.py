@@ -166,7 +166,9 @@ def dashboard(request: Request):
             "AND error IS NOT NULL", (w.id,)) if w.enabled and r[0] in w.sources]
         alert = c.execute("SELECT a.tier, a.price_total, a.sent_at, l.title FROM alerts a JOIN listings l ON l.id = a.listing_id"
                           " WHERE a.watch_id = ? AND a.telegram_ok = 1 ORDER BY a.sent_at DESC LIMIT 1", (w.id,)).fetchone()
-        cards.append({"w": w, "problems": problems, "people": [r["name"] for r in recipients.for_watch(c, w.id)], "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
+        people = recipients.for_watch(c, w.id)
+        cards.append({"w": w, "problems": problems, "people": [r["name"] for r in people],
+                      "only_owner": len(people) == 1 and people[0]["is_owner"], "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
                       "override_used": w.override_enabled and w.typical_override is not None,
                       "last_scan": last, "new24": new24, "deals": deals, "alert": alert})
     # Live deals first, then recent alerts, then the rest; paused watches last
