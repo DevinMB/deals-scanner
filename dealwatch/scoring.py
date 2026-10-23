@@ -4,6 +4,7 @@ Pure functions: no I/O. A Watch replaces the scanner's per-model config, and Rul
 carries the global settings (blacklists, seller thresholds, market window).
 """
 
+import functools
 import json
 import re
 import statistics
@@ -86,7 +87,7 @@ def classify(title: str, watch: Watch, rules: Rules, body: str = "") -> Match | 
                 or b["spec_regex"].search(t)) and not b["other_item_regex"].search(t))
     for text in (t, body.lower() if use_body else ""):
         p = _find(watch, text) if text else None
-        if p is not None and not any(x.lower() in text for x in watch.exclude_terms):
+        if p is not None and not (watch.exclude_terms and _excludes(tuple(watch.exclude_terms)).search(text)):
             pos, src = p, text
             break
     if pos is None:
@@ -104,6 +105,12 @@ def classify(title: str, watch: Watch, rules: Rules, body: str = "") -> Match | 
     if is_bundle and not watch.bundle_enabled:
         return None
     return Match(count=count, is_bundle=is_bundle, flags=sorted(set(rules.soft.findall(t)) - {""}))
+
+
+@functools.lru_cache(maxsize=512)
+def _excludes(patterns: tuple[str, ...]) -> re.Pattern:
+    """A watch's own blacklist: regex patterns (plain words work as-is), matched case-insensitively."""
+    return re.compile("|".join(f"(?:{p})" for p in patterns), re.I)
 
 
 def _bundle_phrase(watch: Watch, b: dict) -> re.Pattern:
@@ -159,5 +166,7 @@ def typical_price(prices: list[float], rules: Rules) -> tuple[float | None, int]
 
 
 def effective_typical(learned: float | None, watch: Watch) -> float | None:
-    """Learned median once there are enough samples, else the watch's manual override (None = never alert)."""
-    return learned if learned is not None else watch.typical_override
+    """The watch's override when set and switched on, else the learned median (None = never alert)."""
+    if watch.override_enabled and watch.typical_override is not None:
+        return watch.typical_override
+    return learned

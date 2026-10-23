@@ -11,7 +11,7 @@ class Watch:
     name: str
     search_queries: list[str]
     include_regex: str | None = None
-    exclude_terms: list[str] = field(default_factory=list)
+    exclude_terms: list[str] = field(default_factory=list)  # regex patterns, case-insensitive
     sources: list[str] = field(default_factory=lambda: ["ebay", "craigslist", "offerup", "rss"])
     enabled: bool = True
     deal_ratio: float = 0.60
@@ -19,6 +19,7 @@ class Watch:
     scam_ratio: float = 0.30
     max_price: float | None = None
     typical_override: float | None = None
+    override_enabled: bool = True
     longshot_enabled: bool = True
     quiet_longshots: bool = True
     radius_miles: int | None = None
@@ -31,7 +32,7 @@ class Watch:
         r = dict(row)
         for k in ("search_queries", "exclude_terms", "sources"):
             r[k] = json.loads(r[k])
-        for k in ("enabled", "longshot_enabled", "quiet_longshots", "bundle_enabled"):
+        for k in ("enabled", "override_enabled", "longshot_enabled", "quiet_longshots", "bundle_enabled"):
             r[k] = bool(r[k])
         r.pop("created_at", None)
         return cls(**r)

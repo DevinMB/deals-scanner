@@ -10,9 +10,6 @@ Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7n
   Configure via an optional `OLLAMA_URL` env var; pick the model in Settings.
 - Called only on button press, never during scans. Form works by hand when Ollama is off or unset.
 
-## Open decisions
+## Decisions
 
-- Global `hard_blacklist` was copied from the GPU scanner and contains GPU-only terms (`laptop`, `mobile`,
-  `cable`, `bridge`, `optiplex`, `3060 3070`, brand "for ..." patterns). They would block non-GPU watches
-  such as a laptop. Proposed for step 7: keep generic terms global, move GPU-only ones onto the imported GPU watches.
-- `typical_override` is used only while a watch has fewer than 6 samples; the learned median wins after that.
+- 2026-10-23: watch exclude_terms are regex (per-watch blacklist); GPU-only blacklist terms live in `gpu_import_exclude` for the step 7 importer. `typical_override` wins whenever set and `override_enabled` (default on).

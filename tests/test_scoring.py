@@ -3,14 +3,16 @@
 import pytest
 
 from dealwatch.models import Watch
-from dealwatch.scoring import (Match, Rules, classify, effective_typical, is_market_sample, score, seller_ok,
+from dealwatch.scoring import (DEFAULTS, Match, Rules, classify, effective_typical, is_market_sample, score, seller_ok,
                                typical_price)
 
 RULES = Rules.from_settings()
 
+# As the GPU importer will build it: model excludes + the GPU-only blacklist
 RTX3090 = Watch(id=1, name="RTX 3090", search_queries=["rtx 3090 24gb"],
                 include_regex=r"(?<!\d)3090(?!\d)(?!\s*ti)",
-                exclude_terms=["3090 ti", "3090ti", "optiplex", "precision", "snow"], typical_override=750)
+                exclude_terms=["3090 ti", "3090ti", "optiplex", "precision", "snow"] + DEFAULTS["gpu_import_exclude"],
+                typical_override=750)
 RTX3090_BUNDLE = Watch(**{**RTX3090.__dict__, "bundle_enabled": True})
 AERON = Watch(id=2, name="Herman Miller Aeron", search_queries=["herman miller aeron"])
 
@@ -102,9 +104,17 @@ def test_default_include_is_all_query_words():
     assert c("Pair of Herman Miller Aeron chairs", AERON).count == 2
 
 
-def test_watch_exclude_terms():
-    w = Watch(**{**AERON.__dict__, "exclude_terms": ["Size A"]})
+def test_watch_exclude_terms_are_regex():
+    w = Watch(**{**AERON.__dict__, "exclude_terms": ["Size A", r"\bmesh only\b"]})
     assert c("Herman Miller Aeron size a", w) is None
+    assert c("Herman Miller Aeron MESH ONLY seat", w) is None
+    assert c("Herman Miller Aeron Size B", w) is not None
+
+
+def test_gpu_terms_are_not_global():
+    laptop = Watch(id=3, name="ThinkPad X1", search_queries=["thinkpad x1"])
+    assert c("Lenovo ThinkPad X1 Carbon laptop with cable", laptop) is not None
+    assert c("RTX 3090 laptop") is None  # still blocked on the GPU watch
 
 
 # ---------- score / tier ----------
@@ -199,6 +209,10 @@ def test_typical_price_trims_10_percent():
 
 
 def test_effective_typical():
-    assert effective_typical(810, RTX3090) == 810
+    assert effective_typical(810, RTX3090) == 750  # override wins when set and on
     assert effective_typical(None, RTX3090) == 750
+    off = Watch(**{**RTX3090.__dict__, "override_enabled": False})
+    assert effective_typical(810, off) == 810
+    assert effective_typical(None, off) is None
+    assert effective_typical(810, AERON) == 810
     assert effective_typical(None, AERON) is None
