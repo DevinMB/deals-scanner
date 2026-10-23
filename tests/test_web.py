@@ -152,8 +152,9 @@ class FakeEbay(Source):
 
 def test_preview_explains_and_estimates(client, monkeypatch):
     monkeypatch.setattr(preview, "registry", lambda: {"ebay": FakeEbay})
-    r = client.post("/preview", data={**FORM, "src_craigslist": ""})
-    job_id = r.text.split('hx-get="/preview/')[1].split('"')[0]
+    preview.JOBS.clear()
+    client.post("/preview", data={**FORM, "src_craigslist": ""})
+    job_id = next(iter(preview.JOBS))  # the fake source can finish before the first render, so don't parse it
     for _ in range(50):
         html = client.get(f"/preview/{job_id}").text
         if "Excluded, and why" in html:
@@ -167,3 +168,38 @@ def test_preview_explains_and_estimates(client, monkeypatch):
 
 def test_preview_validation(client):
     assert "Add at least one search term." in client.post("/preview", data={**FORM, "search_queries": ""}).text
+
+
+def test_gpu_import_creates_17_and_updates_by_name(client):
+    create(client, name="RTX 3090", search_queries="rtx 3090")
+    assert "Import the 16 GPU watches" in client.get("/").text
+    r = client.post("/import/gpu", follow_redirects=False)
+    assert r.headers["location"] == "/?imported=16+new,+1+updated"
+    db = client.app.state.db
+    assert db.execute("SELECT COUNT(*) FROM watches").fetchone()[0] == 17
+    w = db.execute("SELECT * FROM watches WHERE name = 'RTX 3090'").fetchone()
+    assert (w["typical_override"], w["override_enabled"], w["bundle_enabled"], w["bundle_ratio"]) == (750, 1, 1, 0.85)
+    assert w["include_regex"] == r"(?<!\d)3090(?!\d)(?!\s*ti)"
+    ex = json.loads(w["exclude_terms"])
+    assert r"3090\ ti" in ex and r"\blaptop\b" in ex
+    assert "Import the" not in client.get("/").text
+    # re-import is idempotent
+    client.post("/import/gpu")
+    assert db.execute("SELECT COUNT(*) FROM watches").fetchone()[0] == 17
+
+
+def test_imported_gpu_watch_matches_like_the_old_scanner(client):
+    from dealwatch import gpu_import
+    from dealwatch.models import Watch
+    from dealwatch.scoring import Rules, classify
+    client.post("/import/gpu")
+    rules = Rules.from_settings()
+    watches = {r["name"]: Watch.from_row(r) for r in client.app.state.db.execute("SELECT * FROM watches")}
+    assert classify("NVIDIA GeForce RTX 3090 Founders Edition 24GB", watches["RTX 3090"], rules)
+    assert not classify("RTX 3090 Ti 24GB", watches["RTX 3090"], rules)
+    assert classify("RTX 3090 Ti 24GB", watches["RTX 3090 Ti"], rules)
+    assert not classify("Dell Precision 7920 RTX 3090", watches["RTX 3090"], rules)
+    assert not classify("RTX 4090 laptop", watches["RTX 4090"], rules)
+    assert classify("Gaming PC i9-13900K 64GB DDR5 RTX 4090", watches["RTX 4090"], rules).is_bundle
+    assert not classify("NVIDIA A100 80GB SXM4", watches["A100 80GB"], rules)
+    assert classify("NVIDIA A100 80GB PCIe", watches["A100 80GB"], rules)

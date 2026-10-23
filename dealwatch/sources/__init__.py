@@ -69,6 +69,7 @@ class Source:
 
     has_body: bool = False
     detail_cap_key: str = "detail_fetch_cap"  # settings key: max body fetches per run
+    query_delay: tuple[float, float] = (2, 5)  # seconds between searches
 
     def health_count(self, parsed: int) -> int:
         """Items that prove the source is reachable this run (0 for 3 runs = failing)."""
@@ -79,6 +80,16 @@ def http_get(url: str, **params) -> httpx.Response:
     r = httpx.get(url, params=params or None, headers={"User-Agent": UA}, timeout=25, follow_redirects=True)
     r.raise_for_status()
     return r
+
+
+LOCAL_QUERY_DROP = re.compile(r"\b(\d+\s*gb|pcie|sxm\d?|nvidia|geforce|amd|radeon)\b", re.I)
+
+
+def local_query(query: str) -> str:
+    """Craigslist and OfferUp return nothing for specific queries ("rtx 4090 24gb"); search broader and
+    let the watch's include pattern do the matching, as the GPU scanner's short local queries did."""
+    q = " ".join(LOCAL_QUERY_DROP.sub(" ", query).split())
+    return q or query
 
 
 def money(s: str | None) -> float | None:

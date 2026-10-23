@@ -5,7 +5,7 @@ import re
 import urllib.parse
 
 from ..models import Watch
-from . import Listing, Source, log, money
+from . import Listing, Source, local_query, log, money
 
 LINKS_JS = "els => els.map(e => [e.href, e.innerText.split('\\n').map(s => s.trim()).filter(Boolean)])"
 
@@ -20,7 +20,7 @@ class OfferUp(Source):
     def search(self, query: str, watch: Watch) -> list[Listing]:
         page = self.ctx.browser.new_page()
         try:
-            page.goto("https://offerup.com/search?" + urllib.parse.urlencode({"q": query}), timeout=45000)
+            page.goto("https://offerup.com/search?" + urllib.parse.urlencode({"q": local_query(query)}), timeout=45000)
             page.wait_for_timeout(4000)
             for _ in range(3):
                 page.mouse.wheel(0, 2500)

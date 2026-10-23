@@ -40,6 +40,16 @@
   </section>
 
   <section>
+    <h2>Part check <small class="muted">a local Ollama model checks each alert is the item itself, not a part</small></h2>
+    <label class="check"><input type="checkbox" name="llm_check_enabled" {% if s.llm_check_enabled %}checked{% endif %}> Check alerts with Ollama before sending <small>(bundles are never checked; if Ollama is down, alerts go out marked "not checked")</small></label>
+    <div class="grid2">
+      <label>Ollama URL <input name="ollama_url" value="{{ s.ollama_url }}" placeholder="http://192.168.1.197:11434" class="mono"></label>
+      <label>Model <input name="ollama_model" value="{{ s.ollama_model }}" class="mono"></label>
+    </div>
+    <p><button class="btn" type="button" hx-post="/ollama/test" hx-include="closest section" hx-target="#ol-result">Test part check</button> <span id="ol-result"></span></p>
+  </section>
+
+  <section>
     <h2>Home location <small class="muted">for local distance</small></h2>
     <div class="grid3">
       <label>Name <input name="home_label" value="{{ s.home.label }}"></label>

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import settings as settings_mod
+from . import llm, settings as settings_mod
 from .models import Watch
 from .scoring import (Match, Rules, Score, classify, effective_typical, is_market_sample, looks_like_bundle, score,
                       seller_ok, typical_price)
@@ -132,7 +132,7 @@ def collect(ctx: Context, src: Source, watches: list[Watch], deadline: float, re
                 if m:
                     hits.append(Hit(w, src, l, m))
             if sleep and i < len(w.search_queries) - 1:
-                time.sleep(random.uniform(2, 5))
+                time.sleep(random.uniform(*src.query_delay))
         parsed += found
         result.errors.setdefault(src.name, []).extend(errors)
         if conn is not None:
@@ -141,7 +141,7 @@ def collect(ctx: Context, src: Source, watches: list[Watch], deadline: float, re
         if result.timed_out:
             break
         if sleep:
-            time.sleep(random.uniform(2, 5))
+            time.sleep(random.uniform(*src.query_delay))
     result.parsed[src.name] = result.parsed.get(src.name, 0) + parsed
     return hits
 
@@ -238,11 +238,14 @@ def alert_payload(h: Hit) -> dict:
             "quiet": s.tier == "LONG SHOT" and h.watch.quiet_longshots}
 
 
-def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: RunResult, now: datetime) -> None:
+def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: RunResult, now: datetime,
+                 s: dict | None = None) -> None:
     row = conn.execute("SELECT id, telegram_ok FROM alerts WHERE listing_id = ? AND price_total = ?",
                        (h.listing_id, h.listing.price_total)).fetchone()
     if row and row["telegram_ok"]:
         return  # already alerted at this price
+    if s is not None and not _is_the_item(conn, h, s):
+        return
     if h.source.name == "ebay" and not _ebay_available(conn, h, now):
         return
     if row:
@@ -263,6 +266,25 @@ def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: R
     if ok:
         conn.execute("UPDATE alerts SET sent_at = ?, telegram_ok = 1 WHERE id = ?", (iso(now), alert_id))
         result.alerts_sent += 1
+
+
+def _is_the_item(conn, h: Hit, s: dict) -> bool:
+    """Ollama part check. Bundles skip it (bias toward alerting on a whole PC); unavailable = alert, unverified."""
+    if h.match.is_bundle or not s.get("llm_check_enabled") or not s.get("ollama_url"):
+        return True
+    row = conn.execute("SELECT llm_verdict FROM listings WHERE id = ?", (h.listing_id,)).fetchone()
+    verdict = row["llm_verdict"] if row else None
+    if verdict is None:
+        r = llm.check(s["ollama_url"], s["ollama_model"], h.watch.name, h.listing.title)
+        if r is None:
+            h.listing.extra["note"] = "; ".join(x for x in (h.listing.extra.get("note"), "not checked for parts: Ollama unavailable") if x)
+            return True
+        verdict, reason = r
+        conn.execute("UPDATE listings SET llm_verdict = ?, llm_reason = ? WHERE id = ?", (verdict, reason, h.listing_id))
+    if verdict != "item":
+        log.info("ollama says %s, not alerting: %s", verdict, h.listing.title[:70])
+        return False
+    return True
 
 
 def _ebay_available(conn, h: Hit, now: datetime) -> bool:
@@ -373,7 +395,7 @@ def _run(conn, notifier, result, watch_ids, source_names, reg, sleep):
             if h.score:
                 unique.setdefault((h.listing_id, h.listing.price_total), h)
         for h in sorted(unique.values(), key=lambda h: (TIER_ORDER[h.score.tier], h.score.ratio or 0)):
-            handle_alert(conn, h, notifier, result, now_dt)
+            handle_alert(conn, h, notifier, result, now_dt, s)
     finally:
         if browser:
             browser.close()

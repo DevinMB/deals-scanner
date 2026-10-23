@@ -1,0 +1,174 @@
+{
+ "_comment": "GPU models from gpu-deal-watch's config.json (2026-10), for the one-click import.",
+ "deal_ratio": 0.6,
+ "local_deal_ratio": 0.5,
+ "scam_ratio": 0.3,
+ "pc_ratio": 0.85,
+ "models": [
+  {
+   "name": "RTX 3090",
+   "vram": 24,
+   "query": "rtx 3090 24gb",
+   "regex": "(?<!\\d)3090(?!\\d)(?!\\s*ti)",
+   "exclude": [
+    "3090 ti",
+    "3090ti",
+    "optiplex",
+    "precision",
+    "snow"
+   ],
+   "fallback_median": 750
+  },
+  {
+   "name": "RTX 3090 Ti",
+   "vram": 24,
+   "query": "rtx 3090 ti 24gb",
+   "regex": "(?<!\\d)3090\\s*ti\\b",
+   "fallback_median": 900
+  },
+  {
+   "name": "RTX 4090",
+   "vram": 24,
+   "query": "rtx 4090 24gb",
+   "regex": "(?<!\\d)4090(?!\\d)",
+   "exclude": [
+    "4090d",
+    "4090 d ",
+    "48gb",
+    "laptop"
+   ],
+   "fallback_median": 1800
+  },
+  {
+   "name": "RTX 5090",
+   "vram": 32,
+   "query": "rtx 5090 32gb",
+   "regex": "(?<!\\d)5090(?!\\d)",
+   "exclude": [
+    "laptop",
+    "5090d",
+    "optiplex",
+    "precision"
+   ],
+   "fallback_median": 2600
+  },
+  {
+   "name": "RTX A6000",
+   "vram": 48,
+   "query": "nvidia rtx a6000 48gb",
+   "regex": "\\ba6000\\b",
+   "exclude": [
+    "ada",
+    "6000 ada"
+   ],
+   "fallback_median": 3500
+  },
+  {
+   "name": "RTX 6000 Ada",
+   "vram": 48,
+   "query": "rtx 6000 ada 48gb",
+   "regex": "6000\\s*ada",
+   "fallback_median": 5500
+  },
+  {
+   "name": "RTX PRO 6000 Blackwell",
+   "vram": 96,
+   "query": "rtx pro 6000 blackwell 96gb",
+   "regex": "pro\\s*6000.*(blackwell|96\\s*gb)|96\\s*gb.*pro\\s*6000",
+   "fallback_median": 8000,
+   "exclude": [
+    "6000d",
+    "84gb",
+    "84 gb"
+   ]
+  },
+  {
+   "name": "RTX 5000 Ada",
+   "vram": 32,
+   "query": "rtx 5000 ada 32gb",
+   "regex": "5000\\s*ada",
+   "fallback_median": 3000
+  },
+  {
+   "name": "Quadro RTX 8000",
+   "vram": 48,
+   "query": "quadro rtx 8000 48gb",
+   "regex": "rtx\\s*8000",
+   "fallback_median": 1800
+  },
+  {
+   "name": "L40S",
+   "vram": 48,
+   "query": "nvidia l40s 48gb",
+   "regex": "\\bl40s\\b",
+   "fallback_median": 6500
+  },
+  {
+   "name": "A100 40GB",
+   "vram": 40,
+   "query": "nvidia a100 40gb pcie",
+   "regex": "\\ba100\\b.*\\b40\\s*gb|\\b40\\s*gb.*\\ba100\\b",
+   "exclude": [
+    "sxm"
+   ],
+   "fallback_median": 4000
+  },
+  {
+   "name": "A100 80GB",
+   "vram": 80,
+   "query": "nvidia a100 80gb pcie",
+   "regex": "\\ba100\\b.*\\b80\\s*gb|\\b80\\s*gb.*\\ba100\\b",
+   "exclude": [
+    "sxm"
+   ],
+   "fallback_median": 9000
+  },
+  {
+   "name": "H100 PCIe",
+   "vram": 80,
+   "query": "nvidia h100 80gb pcie",
+   "regex": "\\bh100\\b",
+   "exclude": [
+    "sxm",
+    "nvl"
+   ],
+   "fallback_median": 20000
+  },
+  {
+   "name": "Tesla V100 32GB",
+   "vram": 32,
+   "query": "tesla v100 32gb pcie",
+   "regex": "\\bv100\\b.*32\\s*gb|32\\s*gb.*\\bv100\\b",
+   "exclude": [
+    "sxm2",
+    "sxm"
+   ],
+   "fallback_median": 500
+  },
+  {
+   "name": "Radeon Pro W7900",
+   "vram": 48,
+   "query": "radeon pro w7900 48gb",
+   "regex": "\\bw7900\\b",
+   "exclude": [
+    "w7900ds",
+    "dual slot"
+   ],
+   "fallback_median": 2800
+  },
+  {
+   "name": "RX 7900 XTX",
+   "vram": 24,
+   "query": "rx 7900 xtx 24gb",
+   "regex": "7900\\s*xtx",
+   "fallback_median": 750
+  },
+  {
+   "name": "AMD Instinct MI100",
+   "vram": 32,
+   "query": "amd instinct mi100 32gb",
+   "regex": "\\bmi100\\b",
+   "fallback_median": 900
+  }
+ ]
+}

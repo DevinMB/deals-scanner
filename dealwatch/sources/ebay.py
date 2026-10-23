@@ -20,6 +20,14 @@ EXTRACT_JS = """() => [...document.querySelectorAll('li.s-card')].map(c => {
   };
 })"""
 
+BLOCK_BACKOFF = (30, 45)  # seconds to wait after eBay's error page before one retry
+MAX_BLOCKS = 3  # consecutive blocked searches before giving up on eBay for this run
+
+
+class EbayBlocked(RuntimeError):
+    pass
+
+
 UNAVAILABLE = re.compile(r"out of stock|this listing (has|was) ended|no longer available|listing was ended|bidding has ended")
 
 
@@ -28,10 +36,12 @@ class Ebay(Source):
     label = "eBay"
     local = False
     needs_browser = True
+    query_delay = (5, 10)
 
     def __init__(self, ctx):
         super().__init__(ctx)
         self._page = None
+        self.blocks = 0  # consecutive searches that hit eBay's error page
 
     @property
     def page(self):
@@ -42,20 +52,31 @@ class Ebay(Source):
         return self._page
 
     def search(self, query: str, watch: Watch) -> list[Listing]:
+        if self.blocks >= MAX_BLOCKS:
+            raise EbayBlocked("skipped: eBay was rate-limiting earlier in this run")
         # Buy It Now, newly listed first, US only (eBay blocks bots from sold-listing searches)
         params = {"_nkw": query, "_ipg": "120", "LH_BIN": "1", "_sop": "10", "LH_PrefLoc": "1"}
         url = "https://www.ebay.com/sch/i.html?" + urllib.parse.urlencode(params)
-        cards = []
-        for _ in range(2):  # 0 cards usually means a soft block; going via the homepage clears it
+        cards, blocked = [], False
+        for attempt in range(2):  # 0 cards usually means a soft block; going via the homepage clears it
             self.page.goto(url, timeout=45000)
             self.page.wait_for_timeout(2500 + random.randint(0, 1500))
             cards = self.page.evaluate(EXTRACT_JS)
             if cards:
                 break
-            self.page.goto("https://www.ebay.com/", timeout=45000)
-            self.page.wait_for_timeout(4000)
+            # The soft block is an "Error Page | eBay" ("Something went wrong on our end"): back off first
+            blocked = self.page.title().lower().startswith("error page")
+            if attempt == 0:
+                if blocked:
+                    self.page.wait_for_timeout(random.uniform(*BLOCK_BACKOFF) * 1000)
+                self.page.goto("https://www.ebay.com/", timeout=45000)
+                self.page.wait_for_timeout(4000)
+        if blocked and not cards:
+            self.blocks += 1
+            raise EbayBlocked(f"eBay error page (rate-limited) for {query!r}")
+        self.blocks = 0
         if not cards:
-            log.warning("ebay returned 0 cards for %r (possible block)", query)
+            log.warning("ebay returned 0 cards for %r", query)
         return [x for x in map(self._parse, cards) if x]
 
     @staticmethod

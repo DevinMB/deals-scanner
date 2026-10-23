@@ -131,5 +131,8 @@
   "offerup_detail_cap": 12,
   "listing_retention_days": 30,
   "telegram_enabled": true,
-  "cheap_outlier_fraction": 0.25
+  "cheap_outlier_fraction": 0.25,
+  "ollama_url": "",
+  "ollama_model": "qwen3.5:4b",
+  "llm_check_enabled": true
 }

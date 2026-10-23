@@ -208,3 +208,33 @@ def test_disabled_watch_not_scanned(conn, tmp_path):
     n = RecordingNotifier()
     r = scan(conn, tmp_path, n)
     assert n.alerts == [] and r.parsed == {}
+
+
+def test_ollama_part_check_blocks_parts_and_caches(conn, tmp_path, monkeypatch):
+    from dealwatch import llm
+    calls = []
+
+    def fake(url, model, item, title, timeout=60):
+        calls.append(title)
+        return ("part", "seat pan frame") if "frame" in title else ("item", "complete chair")
+    monkeypatch.setattr(llm, "check", fake)
+    settings.put(conn, "ollama_url", "http://ollama")
+    add_watch(conn, max_price=1000)
+    FakeEbay.listings = [ebay(1, 900), ebay(2, 200, title="Herman Miller Aeron seat pan frame size B")]
+    n = RecordingNotifier()
+    scan(conn, tmp_path, n)
+    assert [a["price_total"] for a in n.alerts] == [900]
+    assert conn.execute("SELECT llm_verdict FROM listings WHERE source_id = 'e2'").fetchone()[0] == "part"
+    scan(conn, tmp_path, RecordingNotifier())
+    assert len(calls) == 2  # verdicts cached: nothing asked twice
+
+
+def test_ollama_down_still_alerts_with_note(conn, tmp_path, monkeypatch):
+    from dealwatch import llm
+    monkeypatch.setattr(llm, "check", lambda *a, **k: None)
+    settings.put(conn, "ollama_url", "http://ollama")
+    add_watch(conn, max_price=1000)
+    FakeEbay.listings = [ebay(1, 900)]
+    n = RecordingNotifier()
+    scan(conn, tmp_path, n)
+    assert len(n.alerts) == 1 and "Ollama unavailable" in n.alerts[0]["note"]

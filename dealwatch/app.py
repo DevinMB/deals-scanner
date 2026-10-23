@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import config, db, preview, settings as settings_mod, telegram
+from . import config, db, gpu_import, preview, settings as settings_mod, telegram
 from .models import Watch
 from .runner import SOURCE_ORDER, iso, market
 from .scheduler import Scheduler
@@ -164,8 +164,16 @@ def dashboard(request: Request):
         cards.append({"w": w, "learned": med, "samples": n, "newest": newest, "typical": effective_typical(med, w),
                       "override_used": w.override_enabled and w.typical_override is not None,
                       "last_scan": last, "new24": new24, "deals": deals, "alert": alert})
+    names = {cd["w"].name.lower() for cd in cards}
+    gpu_missing = sum(1 for m in gpu_import.GPU["models"] if m["name"].lower() not in names)
     return page(request, "dashboard.html", cards=cards, badges=health_badges(s), last_run=s.get("last_run"),
-                scanning=_scanning(request))
+                scanning=_scanning(request), gpu_missing=gpu_missing, imported=request.query_params.get("imported"))
+
+
+@app.post("/import/gpu")
+def import_gpu(request: Request):
+    created, updated = gpu_import.run(conn(request))
+    return RedirectResponse(f"/?imported={created}+new,+{updated}+updated", 303)
 
 
 def _scanning(request: Request) -> bool:
@@ -481,6 +489,11 @@ async def save_settings(request: Request):
     new["min_seller_feedback"] = num("min_seller_feedback", int, 0)
     new["min_seller_positive_pct"] = num("min_seller_positive_pct", float, 0, 100)
     new["telegram_enabled"] = bool(form.get("telegram_enabled"))
+    new["llm_check_enabled"] = bool(form.get("llm_check_enabled"))
+    new["ollama_url"] = form.get("ollama_url", "").strip().rstrip("/")
+    new["ollama_model"] = form.get("ollama_model", "").strip() or DEFAULTS["ollama_model"]
+    if new["ollama_url"] and not new["ollama_url"].startswith("http"):
+        errors.append("Ollama URL should look like http://192.168.1.197:11434")
     for key in ("hard_blacklist", "soft_flags"):
         pats = [x.strip() for x in form.get(key, "").splitlines() if x.strip()]
         for p in pats:
@@ -519,6 +532,22 @@ def reset_setting(request: Request, key: str):
     if key in ("hard_blacklist", "soft_flags", "rss_feeds"):
         conn(request).execute("DELETE FROM settings WHERE key = ?", (key,))
     return RedirectResponse("/settings?saved=1", 303)
+
+
+@app.post("/ollama/test", response_class=HTMLResponse)
+async def ollama_test(request: Request):
+    from . import llm
+    form = await request.form()
+    url, model = form.get("ollama_url", "").strip(), form.get("ollama_model", "").strip() or DEFAULTS["ollama_model"]
+    if not url:
+        return '<span class="err">Enter the Ollama URL first.</span>'
+    item = llm.check(url, model, "Herman Miller Aeron", "Herman Miller Aeron Chair Size B Fully Loaded", timeout=90)
+    part = llm.check(url, model, "Herman Miller Aeron", "OEM Herman Miller Aeron Seat Pan Frame Size B", timeout=90)
+    if item is None or part is None:
+        return f'<span class="err">Couldn\'t get an answer from {html.escape(model)} at {html.escape(url)}. See the logs.</span>'
+    good = item[0] == "item" and part[0] != "item"
+    return (f'<span class="{"ok" if good else "err"}">{"Working" if good else "Answered, but got it wrong"}: '
+            f'chair → {item[0]}, seat frame → {part[0]}.</span>')
 
 
 @app.post("/telegram/test", response_class=HTMLResponse)

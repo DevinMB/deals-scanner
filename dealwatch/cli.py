@@ -7,6 +7,7 @@
   python -m dealwatch.cli scan [--watch ID ...] [--source S ...] [--dry-run]
       Run one scan now against the app database (skipped if a scan is already running).
   python -m dealwatch.cli telegram-test
+  python -m dealwatch.cli soak-report [--since 2026-10-23T18:45:00Z | --hours 48]
 """
 
 import argparse
@@ -99,6 +100,30 @@ def telegram_test(args) -> int:
     return 0 if ok else 1
 
 
+def soak_report(args) -> int:
+    """How the app has done since a time: scan cadence, per-source results, alerts. For the 48 h soak test."""
+    from datetime import datetime, timedelta, timezone
+    conn = _db()
+    since = args.since or (datetime.now(timezone.utc) - timedelta(hours=args.hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    times = [datetime.fromisoformat(r[0].replace("Z", "+00:00"))
+             for r in conn.execute("SELECT started_at FROM runs WHERE started_at >= ? ORDER BY 1", (since,))]
+    starts = []  # a scan = a burst of run rows; a quiet gap of 5+ min starts the next one
+    for t in times:
+        if not starts or t - last > timedelta(minutes=5):
+            starts.append(t)
+        last = t
+    gaps = [f"{a:%m-%d %H:%M}→{b:%H:%M}" for a, b in zip(starts, starts[1:]) if b - a > timedelta(minutes=50)]
+    print(f"since {since}: {len(starts)} scans; gaps over 50 min: {gaps or 'none'}")
+    for r in conn.execute("SELECT source, COUNT(*), SUM(listings_found > 0), SUM(error IS NOT NULL), MAX(finished_at) "
+                          "FROM runs WHERE started_at >= ? GROUP BY source", (since,)):
+        print(f"  {r[0]:<11} {r[1]:>4} searches, {r[2]:>4} with results, {r[3]:>4} errors, last {r[4]}")
+    for r in conn.execute("SELECT tier, COUNT(*), SUM(telegram_ok) FROM alerts WHERE created_at >= ? GROUP BY tier", (since,)):
+        print(f"  alerts {r[0]:<11} {r[1]} created, {r[2]} sent")
+    h = load_settings(conn).get("health", {})
+    print("  health:", {k: f"streak {v['streak']}" for k, v in h.items()})
+    return 0
+
+
 def _db():
     conn = db.connect(config.load().db_path)
     db.migrate(conn)
@@ -138,6 +163,10 @@ def main(argv=None) -> int:
     sc.add_argument("--dry-run", action="store_true", help="print Telegram messages instead of sending")
     sc.set_defaults(fn=scan)
     sub.add_parser("telegram-test", help="send a Telegram test message").set_defaults(fn=telegram_test)
+    so = sub.add_parser("soak-report", help="scan cadence, source results and alerts since a time")
+    so.add_argument("--since", help="ISO UTC, e.g. 2026-10-23T18:45:00Z")
+    so.add_argument("--hours", type=float, default=48)
+    so.set_defaults(fn=soak_report)
 
     args = p.parse_args(argv)
     return args.fn(args)

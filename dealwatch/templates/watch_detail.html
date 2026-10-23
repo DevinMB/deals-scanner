@@ -67,6 +67,7 @@
         <td>{% if l.tier %}<span class="tier {{ l.tier | lower | replace(' ', '-') }}" title="{{ l.reasons | join('; ') }}">{{ l.tier }}</span>{% endif %}</td>
         <td><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title }}</a>{% if l.count > 1 %} <span class="tag">×{{ l.count }}</span>{% endif %}
           {% if l.reasons %}<br><small class="muted">{{ l.reasons | join('; ') }}</small>{% endif %}
+          {% if l.llm_verdict and l.llm_verdict != 'item' %}<br><span class="tag warn" title="{{ l.llm_reason }}">Ollama: {{ l.llm_verdict }} · not alerted</span> <small class="muted">{{ l.llm_reason }}</small>{% endif %}
           <div id="nr{{ l.id }}"></div></td>
         <td><small>{{ SOURCE_LABELS.get(l.source, l.source) }}{% if l.location %}<br>{{ l.location }}{% endif %}{% if l.seller %}<br>{{ l.seller }}{% endif %}</small></td>
         <td><button class="btn small" hx-get="/watches/{{ w.id }}/not-relevant/{{ l.id }}" hx-target="#nr{{ l.id }}">Not relevant</button></td>

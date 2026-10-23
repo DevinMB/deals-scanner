@@ -119,3 +119,12 @@ def test_offerup_parse_tile():
     l = OfferUp._parse("https://offerup.com/item/detail/9409f614?cid=x", ["$500", "Herman Miller Aeron Chair Size B", "Holland, MI"])
     assert (l.source_id, l.price_total, l.title, l.location) == ("9409f614", 500.0, "Herman Miller Aeron Chair Size B", "Holland, MI")
     assert OfferUp._parse("https://offerup.com/item/detail/1", ["Free", "Couch"]) is None
+
+
+def test_local_query_broadens_specific_searches():
+    from dealwatch.sources import local_query
+    assert local_query("rtx 4090 24gb") == "rtx 4090"
+    assert local_query("nvidia a100 80gb pcie") == "a100"
+    assert local_query("radeon pro w7900 48gb") == "pro w7900"
+    assert local_query("herman miller aeron") == "herman miller aeron"
+    assert local_query("nvidia") == "nvidia"  # never empty

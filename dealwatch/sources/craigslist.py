@@ -4,7 +4,7 @@ import html
 import re
 
 from ..models import Watch
-from . import Listing, Source, http_get, log, miles
+from . import Listing, Source, http_get, local_query, log, miles
 
 API = "https://sapi.craigslist.org/web/v8/postings/search/full"
 
@@ -18,7 +18,7 @@ class Craigslist(Source):
         # OR queries ("a | b | c") only work with single-word terms; a multi-word term silently breaks the query.
         h = self.ctx.home
         radius = self.ctx.radius(watch)
-        d = http_get(API, batch="1-0-360-0-0", cc="US", lang="en", searchPath="sss", query=query,
+        d = http_get(API, batch="1-0-360-0-0", cc="US", lang="en", searchPath="sss", query=local_query(query),
                      lat=h["lat"], lon=h["lon"], search_distance=radius).json()["data"]
         if not d.get("items") or not isinstance(d.get("decode"), dict):  # decode is 0 when nothing matched
             return []
