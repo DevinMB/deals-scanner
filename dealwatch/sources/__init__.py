@@ -73,6 +73,10 @@ class Source:
     detail_cap_key: str = "detail_fetch_cap"  # settings key: max body fetches per run
     query_delay: tuple[float, float] = (2, 5)  # seconds between searches
 
+    def is_available(self, listing: Listing) -> bool | None:
+        """Checked right before alerting. True = still live, False = gone (sold, expired), None = couldn't check."""
+        return True
+
     def health_count(self, parsed: int) -> int:
         """Items that prove the source is reachable this run (0 for 3 runs = failing)."""
         return parsed

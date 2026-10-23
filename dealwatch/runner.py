@@ -272,7 +272,7 @@ def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: R
         return  # already alerted at this price
     if s is not None and not _is_the_item(conn, h, s):
         return
-    if h.source.name == "ebay" and not _ebay_available(conn, h, now):
+    if not _still_available(conn, h, now):
         return
     people = recipients_mod.for_watch(conn, h.watch.id)
     if not people:
@@ -320,8 +320,9 @@ def _is_the_item(conn, h: Hit, s: dict) -> bool:
     return True
 
 
-def _ebay_available(conn, h: Hit, now: datetime) -> bool:
-    """Search results keep showing sold-out items; open the page first. Recheck unavailable ones after 2 h."""
+def _still_available(conn, h: Hit, now: datetime) -> bool:
+    """Open the listing before alerting: eBay results keep showing sold-out items and Slickdeals keeps expired
+    deals. Sources without a check say True. Unavailable ones are rechecked after 2 h."""
     row = conn.execute("SELECT available, checked_at FROM listings WHERE id = ?", (h.listing_id,)).fetchone()
     if row["available"] == 0 and row["checked_at"] and row["checked_at"] > iso(now - RECHECK_UNAVAILABLE):
         return False

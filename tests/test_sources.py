@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from dealwatch.models import Watch
-from dealwatch.sources import Context, miles, money
+from dealwatch.sources import Context, Listing, miles, money
 from dealwatch.sources import craigslist, rss
 from dealwatch.sources.craigslist import Craigslist
 from dealwatch.sources.rss import Rss, prices_near, rss_items
@@ -161,7 +161,9 @@ def test_slickdeals_rss(monkeypatch):
     rss = b"""<?xml version="1.0"?><rss><channel><title>search</title>
     <item><title>Filtrete 20x25x1 MERV 12 MPR 1500, 6-Pack $66.25 at Amazon</title><link>https://slickdeals.net/f/19001-filtrete</link></item>
     <item><title>3M MPR 2500 Filters 4-Pack $44.99 Instore @ Costco. $49.99 on website.</title><link>https://slickdeals.net/f/19002-3m</link></item>
-    <item><title>Free filter guide</title><link>https://slickdeals.net/f/19003</link></item></channel></rss>"""
+    <item><title>Free filter guide</title><link>https://slickdeals.net/f/19003</link></item>
+    <item><title>Old one $25.08 at Amazon</title><link>https://slickdeals.net/f/18000-old?utm_source=rss</link>
+      <pubDate>Fri, 24 Jul 2026 08:00:14 +0000</pubDate></item></channel></rss>"""
     monkeypatch.setattr(slickdeals, "http_get", lambda url, **p: type("R", (), {"content": rss})())
     got = slickdeals.Slickdeals(Context()).search("filtrete", AERON)
     assert [(l.source_id, l.price_total, l.location) for l in got] == [("19001-filtrete", 66.25, "Amazon"), ("19002-3m", 44.99, "Costco")]
@@ -172,3 +174,14 @@ def test_query_words_ignore_punctuation():
     w = Watch(id=9, name="Filtrete", search_queries=["Filtrete 16x25x1 Air Filter, MERV 11, MPR 1000"])
     assert query_words(w) == ["filtrete", "16x25x1", "air", "filter", "merv", "11", "mpr", "1000"]
     assert classify("Filtrete 16x25x1 Air Filter MPR 1000 MERV 11 (6 pack)", w, Rules.from_settings())
+
+
+
+def test_slickdeals_expired_check(monkeypatch):
+    from dealwatch.sources import slickdeals
+    pages = {"https://slickdeals.net/f/1": '{"isExpiredDeal":"Yes","threadId":1}', "https://slickdeals.net/f/2": '{"isExpiredDeal":"No"}'}
+    monkeypatch.setattr(slickdeals, "http_get", lambda url, **p: type("R", (), {"text": pages[url]})())
+    src = slickdeals.Slickdeals(Context())
+    mk = lambda u: Listing("slickdeals", u[-1], "t", u, 10.0)
+    assert src.is_available(mk("https://slickdeals.net/f/1")) is False
+    assert src.is_available(mk("https://slickdeals.net/f/2")) is True
