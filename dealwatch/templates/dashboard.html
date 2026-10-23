@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Watches</h1>
+{% if watches %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>Typical</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for w in watches %}
+      <tr>
+        <td>{{ w.name }}</td>
+        <td>{% if w.typical_override %}${{ '%.0f' % w.typical_override }}{% else %}learning{% endif %}</td>
+        <td>{{ 'active' if w.enabled else 'paused' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty">No watches yet. Adding and importing watches comes in a later build step.</p>
+{% endif %}
+{% endblock %}

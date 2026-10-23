@@ -1,0 +1,9 @@
+services:
+  dealwatch:
+    build: .
+    container_name: dealwatch
+    ports: ["8080:8080"]
+    volumes: ["./data:/data"]
+    env_file: .env
+    shm_size: 1gb
+    restart: unless-stopped
