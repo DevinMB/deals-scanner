@@ -1,0 +1,313 @@
+{
+  "_comment": "Tiers. DEAL: card price between scam_ratio and deal_ratio of the typical price, clean title, trusted seller. PC DEAL: a whole computer whose price <= pc_ratio x the typical price of the GPU(s) inside. LONG SHOT (quiet notification): anything else <= its threshold but >= longshot_floor -- suspiciously cheap, flagged wording, or weak seller. Typical price = rolling market_window_days median of active US eBay Buy-It-Now asking prices (asking runs ~10-15% above sold); fallback_median is used until min_market_samples are collected. local_deal_ratio replaces deal_ratio for Craigslist/OfferUp/Reddit, where private-sale prices run lower and there is no buyer protection.",
+  "deal_ratio": 0.6,
+  "scam_ratio": 0.3,
+  "pc_ratio": 0.85,
+  "longshot_floor": 0.08,
+  "longshot_quiet": true,
+  "alert_on_fallback": false,
+  "min_seller_feedback": 25,
+  "min_seller_positive_pct": 97.0,
+  "us_only": true,
+  "market_window_days": 14,
+  "min_market_samples": 6,
+  "home": {
+    "label": "Grand Rapids, MI",
+    "lat": 42.96,
+    "lon": -85.67
+  },
+  "max_local_miles": 250,
+  "detail_fetch_cap": 25,
+  "hard_blacklist": [
+    "for parts",
+    "\\bparts\\b",
+    "not work",
+    "non[- ]?work",
+    "broken",
+    "faulty",
+    "defective",
+    "\\bdead\\b",
+    "failed",
+    "no (post|display|video|signal|core|gpu|vram|die|chip|graphics)",
+    "repair",
+    "\\bshort(ed)?\\b",
+    "box only",
+    "empty box",
+    "(fan|fans|cooler|heatsink|shroud|housing) only",
+    "backplate",
+    "bracket",
+    "water ?block",
+    "heatsink",
+    "accessor",
+    "riser",
+    "cable",
+    "bridge",
+    "\\bpcb\\b",
+    "replacement",
+    "sticker",
+    "\\brent(al|ing)?\\b",
+    "per hour",
+    "/hr\\b",
+    "\\bcloud\\b",
+    "\\blaptop\\b",
+    "\\bmobile\\b",
+    "\\bmxm\\b",
+    "\\begpu\\b",
+    "\\bwanted\\b",
+    "\\bwtb\\b",
+    "\\bbuying\\b",
+    "we buy",
+    "\\biso\\b",
+    "looking for",
+    "\\blot of\\b",
+    "pre-?order",
+    "3060 3070",
+    "3070 3080",
+    "8 10 12",
+    "optiplex",
+    "parting out",
+    "water cooler",
+    "\\baio\\b",
+    "\\bfor\\s+(the\\s+|an?\\s+)?(asus|msi|evga|gigabyte|zotac|pny|nvidia|rtx|geforce|founders|sapphire|xfx)"
+  ],
+  "soft_flags": [
+    "untested",
+    "\\bas[- ]is\\b",
+    "\\bbad\\b",
+    "issue",
+    "problem",
+    "artifact",
+    "corrosion",
+    "\\bread\\b",
+    "\\bdesc\\b",
+    "description",
+    "partially",
+    "photo",
+    "picture",
+    "scratch",
+    "no returns",
+    "crack",
+    "mining"
+  ],
+  "pc_spec_regex": "\\b(i[3579][- ]?\\d{3,5}k?f?|i[3579]\\b|core ultra|ryzen|threadripper|xeon|epyc|\\d+\\s*gb\\s*(ddr\\d|ram|memory)|ddr[45]|\\bssd\\b|nvme|\\d+\\s*tb\\b|motherboard|\\bpsu\\b|liquid cooled pc)",
+  "pc_phrase_regex": "(gaming|custom|desktop|tower)\\s*(pc|computer|desktop|rig|build|system)|\\bprebuilt\\b|\\bpc build\\b|computer system|workstation pc|\\bfull build\\b|\\balienware aurora\\b|\\bai (workstation|server|rig)\\b|\\bgpu server\\b",
+  "not_pc_regex": "(used in|from|out of|pulled from|removed from)\\s+(a|an|my|the)?\\s*(gaming |custom |dell |hp )?(pc|computer|prebuilt|build|desktop|rig|system)",
+  "ebay_pc_queries": [
+    "(gaming pc,gaming computer,desktop,tower) (3090,4090,5090)",
+    "(gaming pc,gaming computer,desktop) (\"3090 ti\",\"7900 xtx\")",
+    "(workstation,server,ai) (a6000,\"6000 ada\",\"pro 6000\",a100,l40s,\"rtx 8000\")"
+  ],
+  "craigslist": {
+    "radius_miles": 150,
+    "queries": [
+      "3090 | 4090 | 5090 | 3090ti | 7900xtx | a6000",
+      "a100 | h100 | l40s | v100 | mi100 | w7900 | a5000 | quadro"
+    ],
+    "_comment": "OR terms must be single words; multi-word terms silently break the query."
+  },
+  "offerup": {
+    "queries": [
+      "rtx 3090",
+      "rtx 4090",
+      "rtx 5090",
+      "7900 xtx",
+      "rtx a6000",
+      "gaming pc",
+      "gaming computer"
+    ],
+    "detail_cap": 12
+  },
+  "models": [
+    {
+      "name": "RTX 3090",
+      "vram": 24,
+      "query": "rtx 3090 24gb",
+      "regex": "(?<!\\d)3090(?!\\d)(?!\\s*ti)",
+      "exclude": [
+        "3090 ti",
+        "3090ti",
+        "optiplex",
+        "precision",
+        "snow"
+      ],
+      "fallback_median": 750
+    },
+    {
+      "name": "RTX 3090 Ti",
+      "vram": 24,
+      "query": "rtx 3090 ti 24gb",
+      "regex": "(?<!\\d)3090\\s*ti\\b",
+      "fallback_median": 900
+    },
+    {
+      "name": "RTX 4090",
+      "vram": 24,
+      "query": "rtx 4090 24gb",
+      "regex": "(?<!\\d)4090(?!\\d)",
+      "exclude": [
+        "4090d",
+        "4090 d ",
+        "48gb",
+        "laptop"
+      ],
+      "fallback_median": 1800
+    },
+    {
+      "name": "RTX 5090",
+      "vram": 32,
+      "query": "rtx 5090 32gb",
+      "regex": "(?<!\\d)5090(?!\\d)",
+      "exclude": [
+        "laptop",
+        "5090d",
+        "optiplex",
+        "precision"
+      ],
+      "fallback_median": 2600
+    },
+    {
+      "name": "RTX A6000",
+      "vram": 48,
+      "query": "nvidia rtx a6000 48gb",
+      "regex": "\\ba6000\\b",
+      "exclude": [
+        "ada",
+        "6000 ada"
+      ],
+      "fallback_median": 3500
+    },
+    {
+      "name": "RTX 6000 Ada",
+      "vram": 48,
+      "query": "rtx 6000 ada 48gb",
+      "regex": "6000\\s*ada",
+      "fallback_median": 5500
+    },
+    {
+      "name": "RTX PRO 6000 Blackwell",
+      "vram": 96,
+      "query": "rtx pro 6000 blackwell 96gb",
+      "regex": "pro\\s*6000.*(blackwell|96\\s*gb)|96\\s*gb.*pro\\s*6000",
+      "fallback_median": 8000,
+      "exclude": [
+        "6000d",
+        "84gb",
+        "84 gb"
+      ]
+    },
+    {
+      "name": "RTX 5000 Ada",
+      "vram": 32,
+      "query": "rtx 5000 ada 32gb",
+      "regex": "5000\\s*ada",
+      "fallback_median": 3000
+    },
+    {
+      "name": "Quadro RTX 8000",
+      "vram": 48,
+      "query": "quadro rtx 8000 48gb",
+      "regex": "rtx\\s*8000",
+      "fallback_median": 1800
+    },
+    {
+      "name": "L40S",
+      "vram": 48,
+      "query": "nvidia l40s 48gb",
+      "regex": "\\bl40s\\b",
+      "fallback_median": 6500
+    },
+    {
+      "name": "A100 40GB",
+      "vram": 40,
+      "query": "nvidia a100 40gb pcie",
+      "regex": "\\ba100\\b.*\\b40\\s*gb|\\b40\\s*gb.*\\ba100\\b",
+      "exclude": [
+        "sxm"
+      ],
+      "fallback_median": 4000
+    },
+    {
+      "name": "A100 80GB",
+      "vram": 80,
+      "query": "nvidia a100 80gb pcie",
+      "regex": "\\ba100\\b.*\\b80\\s*gb|\\b80\\s*gb.*\\ba100\\b",
+      "exclude": [
+        "sxm"
+      ],
+      "fallback_median": 9000
+    },
+    {
+      "name": "H100 PCIe",
+      "vram": 80,
+      "query": "nvidia h100 80gb pcie",
+      "regex": "\\bh100\\b",
+      "exclude": [
+        "sxm",
+        "nvl"
+      ],
+      "fallback_median": 20000
+    },
+    {
+      "name": "Tesla V100 32GB",
+      "vram": 32,
+      "query": "tesla v100 32gb pcie",
+      "regex": "\\bv100\\b.*32\\s*gb|32\\s*gb.*\\bv100\\b",
+      "exclude": [
+        "sxm2",
+        "sxm"
+      ],
+      "fallback_median": 500
+    },
+    {
+      "name": "Radeon Pro W7900",
+      "vram": 48,
+      "query": "radeon pro w7900 48gb",
+      "regex": "\\bw7900\\b",
+      "exclude": [
+        "w7900ds",
+        "dual slot"
+      ],
+      "fallback_median": 2800
+    },
+    {
+      "name": "RX 7900 XTX",
+      "vram": 24,
+      "query": "rx 7900 xtx 24gb",
+      "regex": "7900\\s*xtx",
+      "fallback_median": 750
+    },
+    {
+      "name": "AMD Instinct MI100",
+      "vram": 32,
+      "query": "amd instinct mi100 32gb",
+      "regex": "\\bmi100\\b",
+      "fallback_median": 900
+    }
+  ],
+  "rss_feeds": [
+    {
+      "name": "r/hardwareswap+homelabsales",
+      "url": "https://www.reddit.com/r/hardwareswap+homelabsales/new/.rss?limit=50",
+      "used": true
+    },
+    {
+      "name": "r/buildapcsales",
+      "url": "https://www.reddit.com/r/buildapcsales/new/.rss?limit=50",
+      "used": false
+    },
+    {
+      "name": "Slickdeals frontpage",
+      "url": "https://slickdeals.net/newsearch.php?mode=frontpage&searcharea=deals&searchin=first&rss=1",
+      "used": false
+    },
+    {
+      "name": "Ben's Bargains",
+      "url": "https://www.bensbargains.com/rss/",
+      "used": false
+    }
+  ],
+  "local_deal_ratio": 0.5,
+  "card_regex": "graphics card|video card|\\bgpu\\s*-|-\\s*gpu\\b|\\bgpu\\b$",
+  "pc_word_regex": "\\b(pc|computer|desktop|tower|rig|build|workstation|server|system)\\b",
+  "other_gpu_regex": "\\b(rtx|gtx|rx)\\s*\\d{4}|\\b\\d{4}\\s*(ti|super|xt)\\b|\\b(1060|1070|1080|1660|2060|2070|2080|3050|3060|3070|3080|4060|4070|4080|5060|5070|5080|6700|6800|6900|7600|7700|7800|9070)\\b"
+}
