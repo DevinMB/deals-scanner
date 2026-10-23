@@ -1,0 +1,12 @@
+<div id="scan-status" class="scan-status"
+     {% if scanning %}hx-get="/scan/status" hx-trigger="every 5s" hx-swap="outerHTML"{% endif %}>
+  {% if scanning %}
+    <span class="spinner" aria-hidden="true"></span> Scanning… this takes a few minutes.
+  {% elif last_run and last_run.finished_at %}
+    Last scan {{ last_run.finished_at | ago }} · {{ last_run.matches }} matches · {{ last_run.alerts_sent }} alerts sent
+    {% if last_run.timed_out %}<span class="tag warn">timed out</span>{% endif %}
+  {% else %}
+    No scan yet. The first one starts about 2 minutes after the app starts.
+  {% endif %}
+  <button class="btn" hx-post="/scan" hx-target="#scan-status" hx-swap="outerHTML" {% if scanning %}disabled{% endif %}>Scan now</button>
+</div>

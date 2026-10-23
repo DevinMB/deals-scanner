@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Settings · Deal Watch{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1>{% if saved %}<span class="ok">Saved.</span>{% endif %}</div>
+{% if errors %}
+<div class="errors" role="alert"><strong>Not saved. Please fix:</strong><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<section id="health">
+  <h2>Source health</h2>
+  {% if badges %}
+  <div class="table-wrap"><table class="compact">
+    <thead><tr><th>Source</th><th>Status</th><th>Last good run</th><th>Last problem</th></tr></thead>
+    <tbody>{% for b in badges %}
+      <tr><td>{{ b.label }}</td>
+        <td><span class="tag {{ 'bad' if b.state == 'failing' else 'warn' if b.state == 'flaky' else 'good' }}">{{ {'ok': 'OK', 'flaky': 'empty last run', 'failing': 'failing'}[b.state] }}{% if b.streak > 1 %} · {{ b.streak }} runs{% endif %}</span></td>
+        <td>{{ b.last_ok | ago }}</td><td><small>{{ b.last_error or '—' }}</small></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">Appears after the first scan.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Telegram</h2>
+  <p>Bot token: <code>{{ token }}</code> · Chat: <code>{{ chat }}</code>
+    <br><small class="muted">These come from <code>.env</code> and are never stored in the database.{% if dry_run %} <strong>DRY_RUN is on: nothing is sent.</strong>{% endif %}</small></p>
+  <p><button class="btn" hx-post="/telegram/test" hx-target="#tg-result" hx-swap="innerHTML">Send test message</button> <span id="tg-result"></span></p>
+</section>
+
+<form method="post" action="/settings" class="settings-form">
+  <section>
+    <h2>Alerts</h2>
+    <label class="check"><input type="checkbox" name="telegram_enabled" {% if s.telegram_enabled %}checked{% endif %}> Send Telegram alerts <small>(untick to pause all alerts; they're kept and sent when re-enabled if still live)</small></label>
+    <div class="grid2">
+      <label>Scan every <span class="suffix"><input name="scan_interval_min" type="number" min="10" max="1440" value="{{ s.scan_interval_min }}">min</span></label>
+      <label>Trusted eBay seller <small>minimum feedback count and % positive</small>
+        <span class="pair"><input name="min_seller_feedback" type="number" min="0" value="{{ s.min_seller_feedback }}">
+        <span class="suffix"><input name="min_seller_positive_pct" type="number" step="0.1" min="0" max="100" value="{{ s.min_seller_positive_pct }}">%</span></span></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>Home location <small class="muted">for local distance</small></h2>
+    <div class="grid3">
+      <label>Name <input name="home_label" value="{{ s.home.label }}"></label>
+      <label>Latitude <input name="home_lat" inputmode="decimal" value="{{ s.home.lat }}"></label>
+      <label>Longitude <input name="home_lon" inputmode="decimal" value="{{ s.home.lon }}"></label>
+    </div>
+    <label>Default local radius <span class="suffix"><input name="radius_miles" type="number" min="1" max="500" value="{{ s.radius_miles }}">mi</span></label>
+  </section>
+
+  <section>
+    <h2>Filters for every watch</h2>
+    <div class="grid2">
+      <label>Blacklist <small>one regex per line; matching titles are always ignored</small>
+        <textarea name="hard_blacklist" rows="12" class="mono">{{ s.hard_blacklist | join('\n') }}</textarea></label>
+      <label>Long-shot words <small>one regex per line; a match turns a deal into a quiet long shot</small>
+        <textarea name="soft_flags" rows="12" class="mono">{{ s.soft_flags | join('\n') }}</textarea></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>RSS feeds</h2>
+    <label><small>One per line: <code>name | url</code>, add <code>| swap</code> for [H]/[W] trading subs</small>
+      <textarea name="rss_feeds" rows="5" class="mono">{{ feeds_text }}</textarea></label>
+  </section>
+
+  <div class="actions"><button class="btn primary">Save settings</button></div>
+</form>
+
+<details class="danger">
+  <summary>Reset lists to defaults</summary>
+  <form method="post" action="/settings/reset/hard_blacklist" class="inline"><button class="btn">Reset blacklist</button></form>
+  <form method="post" action="/settings/reset/soft_flags" class="inline"><button class="btn">Reset long-shot words</button></form>
+  <form method="post" action="/settings/reset/rss_feeds" class="inline"><button class="btn">Reset RSS feeds</button></form>
+</details>
+{% endblock %}

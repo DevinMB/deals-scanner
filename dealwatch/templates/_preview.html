@@ -1,0 +1,49 @@
+{% if errors %}
+<div class="errors" role="alert"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% elif job %}
+<section class="preview" {% if job.status in ('waiting', 'running') %}hx-get="/preview/{{ job.id }}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+  <h2>Preview{% if job.status in ('waiting', 'running') %} <span class="spinner" aria-hidden="true"></span>{% endif %}</h2>
+  {% if job.status in ('waiting', 'running') %}
+    <ul class="progress">{% for p in job.progress[-6:] %}<li>{{ p }}</li>{% endfor %}</ul>
+  {% elif job.status == 'error' %}
+    <p class="err">Preview failed: {{ job.error }}</p>
+  {% else %}
+    <p class="summary">
+      <strong>{{ job.matches | length }}</strong> matching listings, <strong>{{ job.alerts | length }}</strong> would alert,
+      {{ job.rows | length - job.matches | length }} excluded.
+      {% if job.typical %}
+        Typical price: <strong>{{ job.typical | money }}</strong>
+        ({% if job.watch.override_enabled and job.watch.typical_override %}your override{% if job.learned %}; eBay suggests {{ job.learned | money }}{% endif %}{% else %}eBay asking median of {{ job.samples }} clean listings{% endif %}).
+      {% else %}
+        <span class="warn-text">Only {{ job.samples }} clean eBay samples (6 needed): this watch won't alert unless you set an override or max price.</span>
+      {% endif %}
+    </p>
+    {% if job.failures %}<p class="warn-text">{{ job.failures | join('; ') }}</p>{% endif %}
+
+    {% if job.matches %}
+    <h3>Matches</h3>
+    <div class="table-wrap"><table class="listings">
+      <thead><tr><th>Price</th><th>Below</th><th>Tier</th><th>Listing</th><th>Source</th></tr></thead>
+      <tbody>{% for r in job.matches[:60] %}
+        <tr><td class="num">{{ r.price | money }}</td><td class="num">{{ r.ratio | pct_below }}</td>
+          <td>{% if r.tier %}<span class="tier {{ r.tier | lower | replace(' ', '-') }}" title="{{ r.reasons | join('; ') }}">{{ r.tier }}</span>{% endif %}</td>
+          <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a>{% if r.match.count > 1 %} <span class="tag">×{{ r.match.count }}</span>{% endif %}
+            {% if r.reasons %}<br><small class="muted">{{ r.reasons | join('; ') }}</small>{% endif %}</td>
+          <td><small>{{ r.source }}{% if r.location %}<br>{{ r.location }}{% endif %}</small></td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% if job.matches | length > 60 %}<p class="muted">…and {{ job.matches | length - 60 }} more.</p>{% endif %}
+    {% endif %}
+
+    {% set groups = job.excluded_by_reason %}
+    {% if groups %}
+    <h3>Excluded, and why</h3>
+    {% for reason, rows in groups %}
+    <details class="excluded"><summary>{{ reason }} <span class="muted">({{ rows | length }})</span></summary>
+      <ul>{% for r in rows[:25] %}<li>{{ r.price | money }} · <a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a> <small class="muted">{{ r.source }}</small></li>{% endfor %}</ul>
+    </details>
+    {% endfor %}
+    {% endif %}
+  {% endif %}
+</section>
+{% endif %}

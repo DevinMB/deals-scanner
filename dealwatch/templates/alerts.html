@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Alerts · Deal Watch{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Alerts</h1></div>
+<form method="get" class="filters">
+  <label>Watch <select name="watch" onchange="this.form.submit()">
+    <option value="">All watches</option>
+    {% for w in watches %}<option value="{{ w.id }}" {% if sel_watch == w.id %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+  </select></label>
+  <label>Tier <select name="tier" onchange="this.form.submit()">
+    <option value="">All tiers</option>
+    {% for t in tiers %}<option {% if sel_tier == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+  </select></label>
+  <noscript><button class="btn">Filter</button></noscript>
+</form>
+{% if alerts %}
+<div class="table-wrap"><table class="listings">
+  <thead><tr><th>When</th><th>Tier</th><th>Price</th><th>Below</th><th>Listing</th><th>Watch</th></tr></thead>
+  <tbody>
+  {% for a in alerts %}
+  <tr>
+    <td><small>{% if a.telegram_ok %}{{ a.sent_at | ago }}{% else %}{{ a.created_at | ago }}<br><span class="tag warn">not sent</span>{% endif %}</small></td>
+    <td><span class="tier {{ a.tier | lower | replace(' ', '-') }}">{{ a.tier }}</span></td>
+    <td class="num">{{ a.price_total | money }}</td>
+    <td class="num">{{ a.ratio | pct_below }}</td>
+    <td><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.title }}</a>
+      <br><small class="muted">{{ SOURCE_LABELS.get(a.source, a.source) }}{% if a.location %} · {{ a.location }}{% endif %}
+      {% set reasons = a.reasons | fromjson %}{% if reasons %} · {{ reasons | join('; ') }}{% endif %}</small></td>
+    <td><a href="/watches/{{ a.watch_id }}">{{ a.watch_name }}</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="muted">No alerts{% if sel_watch or sel_tier %} match these filters{% else %} yet{% endif %}.</p>
+{% endif %}
+{% endblock %}

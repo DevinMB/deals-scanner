@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ w.name }} · Deal Watch{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ w.name }} {% if not w.enabled %}<span class="tag">paused</span>{% endif %}</h1>
+  <div class="row-actions">
+    <a class="btn" href="/watches/{{ w.id }}/edit">Edit</a>
+    <form method="post" action="/watches/{{ w.id }}/toggle"><button class="btn">{{ 'Pause' if w.enabled else 'Resume' }}</button></form>
+  </div>
+</div>
+
+<dl class="stats wide">
+  <div><dt>Typical price</dt><dd>{{ typical | money }}
+    <small class="muted">{% if override_used %}your override{% if learned %} · eBay says {{ learned | money }}{% endif %}{% elif learned %}eBay asking median{% else %}not learned yet{% endif %}</small></dd></div>
+  <div><dt>eBay samples</dt><dd>{{ samples }} <small class="muted">last 14 days{% if newest %} · newest {{ newest | ago }}{% endif %}</small></dd></div>
+  <div><dt>Alerts when</dt><dd><small>≥{{ ((1 - w.deal_ratio) * 100) | round | int }}% below on eBay, ≥{{ ((1 - w.local_deal_ratio) * 100) | round | int }}% locally{% if w.max_price %}, or ≤{{ w.max_price | money }}{% endif %}</small></dd></div>
+  <div><dt>Searches</dt><dd><small>{{ w.search_queries | join(' · ') }}</small></dd></div>
+</dl>
+
+{% if runs %}
+<p class="source-runs">
+  {% for n, label in SOURCE_LABELS.items() if n in w.sources %}
+    {% set r = runs.get(n) %}
+    <span class="tag {% if r and r.error %}bad{% elif r and not r.listings_found %}warn{% endif %}"
+          title="{{ r.error if r and r.error else '' }}">{{ label }}: {% if r %}{{ r.listings_found }} found {{ r.finished_at | ago }}{% else %}not scanned yet{% endif %}</span>
+  {% endfor %}
+</p>
+{% endif %}
+
+<section>
+  <h2>Typical price over time</h2>
+  {% if chart %}
+  <figure class="chart" data-points='{{ chart.data }}'>
+    <svg viewBox="0 0 {{ chart.w }} {{ chart.h }}" role="img" aria-label="Learned typical price per day, {{ chart.first }} to {{ chart.last }}">
+      {% for y, label in chart.ticks %}
+      <line class="grid" x1="{{ chart.pad_l }}" x2="{{ chart.w - chart.pad_r }}" y1="{{ y }}" y2="{{ y }}"/>
+      <text class="axis" x="{{ chart.pad_l - 8 }}" y="{{ y + 4 }}" text-anchor="end">{{ label }}</text>
+      {% endfor %}
+      <text class="axis" x="{{ chart.pad_l }}" y="{{ chart.h - 8 }}">{{ chart.first }}</text>
+      <text class="axis" x="{{ chart.w - chart.pad_r }}" y="{{ chart.h - 8 }}" text-anchor="end">{{ chart.last }}</text>
+      <polyline class="line" points="{{ chart.points }}"/>
+      <line class="crosshair" y1="0" y2="{{ chart.base }}"/>
+      <circle class="dot" r="4"/>
+      <rect class="hit" x="{{ chart.pad_l }}" y="0" width="{{ chart.w - chart.pad_l - chart.pad_r }}" height="{{ chart.base }}"/>
+    </svg>
+    <div class="tip" hidden></div>
+  </figure>
+  <details><summary>Table</summary>
+    <table class="compact"><thead><tr><th>Day</th><th>Typical</th><th>Samples</th></tr></thead>
+      <tbody>{% for h in history | reverse %}<tr><td>{{ h.day }}</td><td class="num">{{ h.median | money }}</td><td class="num">{{ h.samples }}</td></tr>{% endfor %}</tbody></table>
+  </details>
+  {% else %}
+  <p class="muted">The chart appears after the typical price has been learned on two different days.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Current listings <small class="muted">{{ total }} seen in the last 48 h · deals first, then cheapest relative to typical</small></h2>
+  {% if listings %}
+  <div class="table-wrap"><table class="listings">
+    <thead><tr><th>Price</th><th>Below</th><th>Tier</th><th>Listing</th><th>Where</th><th></th></tr></thead>
+    <tbody>
+    {% for l in listings %}
+      <tr id="l{{ l.id }}">
+        <td class="num">{{ l.price_total | money }}</td>
+        <td class="num">{{ l.live_ratio | pct_below }}</td>
+        <td>{% if l.tier %}<span class="tier {{ l.tier | lower | replace(' ', '-') }}" title="{{ l.reasons | join('; ') }}">{{ l.tier }}</span>{% endif %}</td>
+        <td><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title }}</a>{% if l.count > 1 %} <span class="tag">×{{ l.count }}</span>{% endif %}
+          {% if l.reasons %}<br><small class="muted">{{ l.reasons | join('; ') }}</small>{% endif %}
+          <div id="nr{{ l.id }}"></div></td>
+        <td><small>{{ SOURCE_LABELS.get(l.source, l.source) }}{% if l.location %}<br>{{ l.location }}{% endif %}{% if l.seller %}<br>{{ l.seller }}{% endif %}</small></td>
+        <td><button class="btn small" hx-get="/watches/{{ w.id }}/not-relevant/{{ l.id }}" hx-target="#nr{{ l.id }}">Not relevant</button></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if total > listings | length %}<p><a href="?all=1#l{{ listings[-1].id }}">Show all {{ total }} listings</a></p>{% endif %}
+  {% else %}
+  <p class="muted">Nothing matching right now. Listings show up after the next scan.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Alerts</h2>
+  {% if alerts %}
+  <ul class="alert-list">
+    {% for a in alerts %}
+    <li><span class="tier {{ a.tier | lower | replace(' ', '-') }}">{{ a.tier }}</span>
+      {{ a.price_total | money }}{% if a.ratio %} ({{ a.ratio | pct_below }} below){% endif %} ·
+      <a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.title[:80] }}</a>
+      <small class="muted">{{ SOURCE_LABELS.get(a.source, a.source) }} · {% if a.telegram_ok %}sent {{ a.sent_at | ago }}{% else %}not sent yet{% endif %}</small></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No alerts yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='chart.js') }}"></script>{% endblock %}

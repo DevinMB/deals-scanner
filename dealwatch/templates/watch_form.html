@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New watch' if is_new else 'Edit ' ~ w.name }} · Deal Watch{% endblock %}
+{% macro below(r) %}{{ ((1 - r) * 100) | round | int }}{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ 'New watch' if is_new else 'Edit “' ~ w.name ~ '”' }}</h1>
+  {% if not is_new %}<a href="/watches/{{ w.id }}">← Back to watch</a>{% endif %}
+</div>
+
+{% if errors %}
+<div class="errors" role="alert"><strong>Please fix:</strong><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" action="{{ '/watches' if is_new else '/watches/' ~ w.id }}" class="watch-form">
+  <section>
+    <h2>What to look for</h2>
+    <label>Name
+      <input name="name" value="{{ w.name }}" placeholder="Herman Miller Aeron" required autofocus>
+    </label>
+    <label>Search terms <small>one search per line; each is run on every source</small>
+      <textarea name="search_queries" rows="3" placeholder="herman miller aeron">{{ w.search_queries | join('\n') }}</textarea>
+    </label>
+    <label>Exclude <small>one word or pattern per line; listings containing any are ignored</small>
+      <textarea name="exclude_terms" rows="4" placeholder="size a&#10;mesh only">{{ w.exclude_terms | join('\n') }}</textarea>
+    </label>
+    <fieldset class="checks">
+      <legend>Sources</legend>
+      {% for n, label in SOURCE_LABELS.items() %}
+      <label class="check"><input type="checkbox" name="src_{{ n }}" {% if n in w.sources %}checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </fieldset>
+  </section>
+
+  <section>
+    <h2>When to alert</h2>
+    <div class="grid2">
+      <label>Deal on eBay at <small>% below typical</small>
+        <span class="suffix"><input name="deal_pct" type="number" min="0" max="100" value="{{ below(w.deal_ratio) }}">%</span></label>
+      <label>Deal on local sources at <small>Craigslist, OfferUp, Reddit</small>
+        <span class="suffix"><input name="local_deal_pct" type="number" min="0" max="100" value="{{ below(w.local_deal_ratio) }}">%</span></label>
+      <label>Max price <small>always a deal at or under this, even before a typical price is learned</small>
+        <span class="prefix">$<input name="max_price" inputmode="decimal" value="{{ '%.0f' % w.max_price if w.max_price else '' }}"></span></label>
+      <label>Typical price override <small>replaces the learned eBay price while ticked</small>
+        <span class="prefix">$<input name="typical_override" inputmode="decimal" value="{{ '%.0f' % w.typical_override if w.typical_override else '' }}"></span>
+        <span class="check"><input type="checkbox" name="override_enabled" {% if w.override_enabled %}checked{% endif %}> Use override</span></label>
+    </div>
+    <label class="check"><input type="checkbox" name="enabled" {% if w.enabled %}checked{% endif %}> Watch is active</label>
+  </section>
+
+  <details class="advanced" {% if errors %}open{% endif %}>
+    <summary>Advanced</summary>
+    <div class="grid2">
+      <label>Long shots below <small>% below typical that counts as scam/broken risk</small>
+        <span class="suffix"><input name="scam_pct" type="number" min="0" max="100" value="{{ below(w.scam_ratio) }}">%</span></label>
+      <label>Local radius <small>miles; blank = Settings default</small>
+        <input name="radius_miles" type="number" min="1" max="500" value="{{ w.radius_miles or '' }}"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="longshot_enabled" {% if w.longshot_enabled %}checked{% endif %}> Send long shots (suspiciously cheap, flagged words, weak seller)</label>
+    <label class="check"><input type="checkbox" name="quiet_longshots" {% if w.quiet_longshots %}checked{% endif %}> …silently, without a notification sound</label>
+    <label>Include pattern <small>regex a title must match; blank = must contain every word of the first search</small>
+      <input name="include_regex" value="{{ w.include_regex or '' }}" class="mono" placeholder="(?<!\d)3090(?!\d)"></label>
+    <fieldset>
+      <legend>Bundles</legend>
+      <label class="check"><input type="checkbox" name="bundle_enabled" {% if w.bundle_enabled %}checked{% endif %}> Also match whole systems that contain this item (reads listing descriptions)</label>
+      <div class="grid2">
+        <label>Bundle deal at <small>% below the item's typical price, for the whole listing</small>
+          <span class="suffix"><input name="bundle_pct" type="number" min="0" max="100" value="{{ below(w.bundle_ratio) }}">%</span></label>
+        <label>Bundle words <small>regex; blank = built-in PC detection</small>
+          <input name="bundle_regex" value="{{ w.bundle_regex or '' }}" class="mono"></label>
+      </div>
+    </fieldset>
+  </details>
+
+  <div class="actions">
+    <button class="btn primary" type="submit">{{ 'Create watch' if is_new else 'Save' }}</button>
+    <button class="btn" type="button" hx-post="/preview" hx-include="closest form" hx-target="#preview" hx-swap="innerHTML">Preview</button>
+    <span class="muted">Preview runs the searches once without saving or alerting.</span>
+  </div>
+</form>
+
+<div id="preview"></div>
+
+{% if not is_new %}
+<details class="danger">
+  <summary>Delete this watch</summary>
+  <p>Removes the watch, its listings, learned prices and alert history.</p>
+  <form method="post" action="/watches/{{ w.id }}/delete"><button class="btn danger-btn">Delete “{{ w.name }}”</button></form>
+</details>
+{% endif %}
+{% endblock %}

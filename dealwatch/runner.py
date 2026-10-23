@@ -186,6 +186,10 @@ def learn_prices(conn: sqlite3.Connection, hits: list[Hit], rules: Rules, now: d
         prices = [r[0] for r in conn.execute("SELECT price FROM price_samples WHERE watch_id = ? AND first_seen >= ?",
                                              (wid, since))]
         out[wid] = typical_price(prices, rules)
+        if out[wid][0] is not None:
+            conn.execute("INSERT INTO market_history (watch_id, day, median, samples) VALUES (?, ?, ?, ?)"
+                         " ON CONFLICT (watch_id, day) DO UPDATE SET median = excluded.median, samples = excluded.samples",
+                         (wid, now.strftime("%Y-%m-%d"), out[wid][0], out[wid][1]))
     return out
 
 
@@ -246,9 +250,10 @@ def handle_alert(conn: sqlite3.Connection, h: Hit, notifier: Notifier, result: R
     else:
         s = h.score
         alert_id = conn.execute(
-            "INSERT INTO alerts (listing_id, watch_id, price_total, tier, ratio, typical_at_alert, reasons)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (h.listing_id, h.watch.id, h.listing.price_total, s.tier, s.ratio, s.typical, json.dumps(s.reasons))).lastrowid
+            "INSERT INTO alerts (listing_id, watch_id, price_total, tier, ratio, typical_at_alert, reasons, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (h.listing_id, h.watch.id, h.listing.price_total, s.tier, s.ratio, s.typical, json.dumps(s.reasons),
+             iso(now))).lastrowid
         result.alerts_new += 1
     try:
         ok = notifier.alert(alert_payload(h))

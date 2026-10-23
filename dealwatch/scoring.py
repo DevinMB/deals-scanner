@@ -83,21 +83,31 @@ def find_match(watch: Watch, text: str) -> int | None:
 
 def classify(title: str, watch: Watch, rules: Rules, body: str = "") -> Match | None:
     """None (ignore) or a Match. Body text is read only for bundle watches, to find the item inside."""
+    return explain(title, watch, rules, body)[0]
+
+
+def explain(title: str, watch: Watch, rules: Rules, body: str = "") -> tuple[Match | None, str]:
+    """classify(), plus why a listing was rejected ("" when it matched). Powers Preview."""
     t = title.lower()
-    if rules.hard.search(t):
-        return None
+    if hm := rules.hard.search(t):
+        return None, f"global blacklist: “{hm.group(0)}”"
     b = rules.bundle
-    pos, src = None, None
+    pos, src, reason = None, None, ""
     # Only trust the description when the title is a bundle that doesn't name some other item
     use_body = (watch.bundle_enabled and body and (b["word_regex"].search(t) or _bundle_phrase(watch, b).search(t)
                 or b["spec_regex"].search(t)) and not b["other_item_regex"].search(t))
     for text in (t, body.lower() if use_body else ""):
         p = find_match(watch, text) if text else None
-        if p is not None and not (watch.exclude_terms and _excludes(tuple(watch.exclude_terms)).search(text)):
+        ex = watch.exclude_terms and _excludes(tuple(watch.exclude_terms)).search(text) if p is not None else None
+        if p is not None and not ex:
             pos, src = p, text
             break
-    if pos is None or _is_accessory(watch, src, pos):
-        return None
+        if text is t:
+            reason = f"excluded: “{ex.group(0)}”" if ex else _missing(watch, t)
+    if pos is None:
+        return None, reason
+    if am := _is_accessory(watch, src, pos):
+        return None, f"looks like a part or accessory: “{am.group(0).strip()}…”"
     filler = set(rules.filler_words) | set(watch.name.lower().split())
     for q in watch.search_queries:
         filler |= set(q.lower().split())
@@ -109,16 +119,24 @@ def classify(title: str, watch: Watch, rules: Rules, body: str = "") -> Match | 
     if src is not t:  # item only mentioned in the body: almost always a whole system
         is_bundle = True
     if is_bundle and not watch.bundle_enabled:
-        return None
-    return Match(count=count, is_bundle=is_bundle, flags=sorted(set(rules.soft.findall(t)) - {""}))
+        return None, "whole system or bundle (bundle matching is off)"
+    return Match(count=count, is_bundle=is_bundle, flags=sorted(set(rules.soft.findall(t)) - {""})), ""
 
 
-def _is_accessory(watch: Watch, text: str, pos: int) -> bool:
+def _missing(watch: Watch, t: str) -> str:
+    if watch.include_regex:
+        return "doesn't match the include pattern"
+    words = watch.search_queries[0].lower().split() if watch.search_queries else []
+    missing = [w for w in words if not re.search(rf"(?<!\w){re.escape(w)}(?!\w)", t)]
+    return "missing: " + ", ".join(f"“{w}”" for w in missing)
+
+
+def _is_accessory(watch: Watch, text: str, pos: int) -> re.Match | None:
     starts = [pos]
     if not watch.include_regex and watch.search_queries:  # also check each query word ("pads for aeron")
         for w in watch.search_queries[0].lower().split():
             starts += [m.start() for m in re.finditer(rf"(?<!\w){re.escape(w)}(?!\w)", text)]
-    return any(ACCESSORY_BEFORE.search(text[max(0, p - 40):p]) for p in starts)
+    return next((m for p in starts if (m := ACCESSORY_BEFORE.search(text[max(0, p - 40):p]))), None)
 
 
 @functools.lru_cache(maxsize=512)

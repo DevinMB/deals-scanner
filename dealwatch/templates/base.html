@@ -5,15 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Deal Watch{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
-  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <script src="{{ url_for('static', path='htmx.min.js') }}"></script>
 </head>
 <body>
-  <header>
+  <header class="top">
     <a class="brand" href="/">Deal Watch</a>
     <nav>
-      <a href="/">Dashboard</a>
+      <a href="/" {% if request.url.path == '/' %}aria-current="page"{% endif %}>Watches</a>
+      <a href="/alerts" {% if request.url.path.startswith('/alerts') %}aria-current="page"{% endif %}>Alerts</a>
+      <a href="/settings" {% if request.url.path.startswith('/settings') %}aria-current="page"{% endif %}>Settings</a>
     </nav>
+    <a class="btn primary new" href="/watches/new">+ New watch</a>
   </header>
   <main>{% block content %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

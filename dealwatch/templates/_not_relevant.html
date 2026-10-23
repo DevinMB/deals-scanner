@@ -1,0 +1,13 @@
+<div class="nr">
+  {% if words %}
+  <small>Exclude listings containing:</small>
+  {% for word in words %}
+  <form method="post" action="/watches/{{ w.id }}/exclude" class="inline">
+    <input type="hidden" name="word" value="{{ word }}">
+    <button class="chip {% if loop.first %}suggested{% endif %}">{{ word }}</button>
+  </form>
+  {% endfor %}
+  {% else %}
+  <small class="muted">No distinguishing words. Add an exclude on the <a href="/watches/{{ w.id }}/edit">edit page</a>.</small>
+  {% endif %}
+</div>

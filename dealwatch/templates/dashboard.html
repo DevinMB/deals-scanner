@@ -1,26 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Watches</h1>
-{% if watches %}
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>Name</th><th>Typical</th><th>Status</th></tr></thead>
-    <tbody>
-    {% for w in watches %}
-      <tr>
-        <td>{{ w.name }}</td>
-        <td>{% if w.typical_override %}${{ '%.0f' % w.typical_override }}{% else %}learning{% endif %}</td>
-        <td>{{ 'active' if w.enabled else 'paused' }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<div class="page-head">
+  <h1>Watches</h1>
+  {% include "_scan_status.html" %}
+</div>
+
+{% set bad = badges | selectattr("state", "ne", "ok") | list %}
+{% if bad %}
+<div class="sources">
+  {% for b in bad %}
+  <a href="/settings#health" class="tag {{ 'bad' if b.state == 'failing' else 'warn' }}"
+     title="{{ b.last_error or '' }}">{{ b.label }}: {{ 'failing' if b.state == 'failing' else 'empty last run' }}{% if b.streak > 1 %} ({{ b.streak }} runs){% endif %}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if cards %}
+<div class="cards">
+  {% for c in cards %}
+  {% set w = c.w %}
+  <article class="card {% if not w.enabled %}paused{% endif %}">
+    <header>
+      <h2><a href="/watches/{{ w.id }}">{{ w.name }}</a></h2>
+      {% if not w.enabled %}<span class="tag">paused</span>{% endif %}
+    </header>
+    <dl class="stats">
+      <div><dt>Typical</dt>
+        <dd>{% if c.typical %}{{ c.typical | money }}{% else %}<span class="muted">learning</span>{% endif %}
+          <small class="muted">{% if c.override_used %}your override{% elif c.learned %}{{ c.samples }} samples{% else %}{{ c.samples }}/6 samples{% endif %}</small></dd></div>
+      <div><dt>New in 24 h</dt><dd>{{ c.new24 }}</dd></div>
+      <div><dt>Deals now</dt><dd>{{ c.deals }}</dd></div>
+      <div><dt>Last scan</dt><dd>{{ c.last_scan | ago }}</dd></div>
+    </dl>
+    {% if c.alert %}
+    <p class="last-alert"><span class="tier {{ c.alert.tier | lower | replace(' ', '-') }}">{{ c.alert.tier }}</span>
+      {{ c.alert.price_total | money }} · {{ c.alert.title[:60] }} <span class="muted">{{ c.alert.sent_at | ago }}</span></p>
+    {% elif not c.typical and not w.max_price %}
+    <p class="hint">Won't alert until it has 6 eBay samples, an override or a max price.</p>
+    {% endif %}
+    <footer>
+      <a class="btn" href="/watches/{{ w.id }}/edit">Edit</a>
+      <form method="post" action="/watches/{{ w.id }}/toggle"><button class="btn">{{ 'Pause' if w.enabled else 'Resume' }}</button></form>
+    </footer>
+  </article>
+  {% endfor %}
 </div>
 {% else %}
-<p class="empty">No watches yet. Adding and importing watches comes in a later build step.</p>
+<div class="empty-state">
+  <p>No watches yet.</p>
+  <a class="btn primary" href="/watches/new">Create your first watch</a>
+</div>
 {% endif %}
-<footer class="tools">
-  <button hx-post="/telegram/test" hx-target="#tg-result" hx-swap="innerHTML">Send Telegram test</button>
-  <span id="tg-result"></span>
-</footer>
 {% endblock %}

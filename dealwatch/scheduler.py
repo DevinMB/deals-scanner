@@ -42,6 +42,15 @@ class Scheduler:
     def scanning(self) -> bool:
         return self._running.is_set()
 
+    @property
+    def busy(self) -> bool:
+        """Scanning, or a "Scan now" is queued and about to start."""
+        return self.scanning or any(j.id not in ("scan", "watchdog") for j in self._sched.get_jobs())
+
+    def reschedule(self, minutes: int) -> None:
+        self._sched.reschedule_job("scan", trigger="interval", minutes=minutes, jitter=120)
+        log.info("scan interval changed to %s min", minutes)
+
     def scan(self, **kw) -> None:
         self._running.set()
         conn = db.connect(self.cfg.db_path)
@@ -54,8 +63,8 @@ class Scheduler:
             self._running.clear()
 
     def scan_now(self, **kw) -> bool:
-        """Start a scan in the background. False if one is already running in this process."""
-        if self.scanning:
+        """Start a scan in the background. False if one is already running or queued in this process."""
+        if self.busy:
             return False
         self._sched.add_job(self.scan, kwargs=kw, max_instances=1)
         return True
