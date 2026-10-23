@@ -90,3 +90,32 @@ def test_rss_swap_reads_only_have_side(monkeypatch):
     chair = src.search("", AERON)
     assert [(l.source_id, l.price_total) for l in chair] == [("sd1", 899.0)]
     assert chair[0].extra["note"].startswith("price parsed")
+
+
+def ebay_card(**kw):
+    card = {"id": "377563046560", "title": "EVGA GeForce RTX 3090 FTW3 ULTRA 24GB", "cond": "Pre-Owned",
+            "prices": ["$650.00"], "rows": ["+$25.00 delivery", "Located in United States"],
+            "seller": "jaswa-6839 100% positive (2.1K)"}
+    return {**card, **kw}
+
+
+def test_ebay_parse_card():
+    from dealwatch.sources.ebay import Ebay
+    l = Ebay._parse(ebay_card())
+    assert (l.price_total, l.seller_fb_count, l.seller_fb_pct) == (675.0, 2100.0, 100.0)
+    assert l.location == "Located in United States" and l.url == "https://www.ebay.com/itm/377563046560"
+
+
+def test_ebay_skips_junk_cards():
+    from dealwatch.sources.ebay import Ebay
+    assert Ebay._parse(ebay_card(title="Shop on eBay", prices=["$20.00"])) is None
+    assert Ebay._parse(ebay_card(prices=["$500.00", "$700.00"])) is None  # variation price range
+    assert Ebay._parse(ebay_card(cond="For parts or not working")) is None
+    assert Ebay._parse(ebay_card(seller="newbie")).seller_fb_count == 0  # no feedback = untrusted
+
+
+def test_offerup_parse_tile():
+    from dealwatch.sources.offerup import OfferUp
+    l = OfferUp._parse("https://offerup.com/item/detail/9409f614?cid=x", ["$500", "Herman Miller Aeron Chair Size B", "Holland, MI"])
+    assert (l.source_id, l.price_total, l.title, l.location) == ("9409f614", 500.0, "Herman Miller Aeron Chair Size B", "Holland, MI")
+    assert OfferUp._parse("https://offerup.com/item/detail/1", ["Free", "Couch"]) is None

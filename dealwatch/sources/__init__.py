@@ -88,5 +88,7 @@ def miles(home: dict, lat: float, lon: float) -> float:
 
 def registry() -> dict[str, type[Source]]:
     from .craigslist import Craigslist
+    from .ebay import Ebay
+    from .offerup import OfferUp
     from .rss import Rss
-    return {s.name: s for s in (Craigslist, Rss)}
+    return {s.name: s for s in (Ebay, Craigslist, OfferUp, Rss)}
