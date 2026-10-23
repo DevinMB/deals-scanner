@@ -28,6 +28,7 @@ log = logging.getLogger("dealwatch.runner")
 SOURCE_ORDER = ["ebay", "amazon", "walmart", "offerup", "craigslist", "slickdeals", "rss"]
 TIER_ORDER = {"DEAL": 0, "BUNDLE DEAL": 0, "LONG SHOT": 1}
 HEALTH_STREAK = 3
+BLOCK_COOLDOWN_MIN = (60, 24 * 60)  # after a run that was only rate-limited: wait 1 h, doubling per blocked run, max 24 h
 RECHECK_UNAVAILABLE = timedelta(hours=2)
 
 
@@ -346,9 +347,15 @@ def update_health(conn, s: dict, src: Source, result: RunResult, notifier: Notif
     else:
         hs["streak"] += 1
         hs["last_error"] = errors[-1] if errors else "returned no listings"
+    wait = src.min_interval_min
+    if hs["streak"] and errors and all("rate-limited" in e for e in errors):
+        lo, hi = BLOCK_COOLDOWN_MIN
+        wait = max(wait, min(lo * 2 ** (hs["streak"] - 1), hi))
+    hs["next_try"] = iso(datetime.fromisoformat(now.replace("Z", "+00:00")) + timedelta(minutes=wait)) if wait else None
     if hs["streak"] >= HEALTH_STREAK and not hs["warned"]:
+        retry = f" Backing off; next try {hs['next_try'][11:16]} UTC." if hs["next_try"] and wait > src.min_interval_min else ""
         text = (f"⚠️ Deal Watch: {src.label} has returned nothing for {hs['streak']} runs in a row "
-                f"(last error: {hs['last_error']}). Check the dashboard.")
+                f"(last error: {hs['last_error']}).{retry} Check the dashboard.")
         try:
             hs["warned"] = notifier.health(text)
         except Exception as ex:
@@ -386,6 +393,12 @@ def _run(conn, notifier, result, watch_ids, source_names, reg, sleep):
     ctx = Context(settings=s, rules=rules)
     planned = [n for n in SOURCE_ORDER if n in reg and (source_names is None or n in source_names)
                and any(n in w.sources for w in watches)]
+    if source_names is None and watch_ids is None:  # full scans respect each source's cadence and block cooldown
+        due = iso()
+        waiting = [n for n in planned if ((s.get("health", {}).get(n) or {}).get("next_try") or "") > due]
+        if waiting:
+            log.info("not due yet: %s", ", ".join(waiting))
+        planned = [n for n in planned if n not in waiting]
     names = list(planned)
     deadline = time.monotonic() + s["run_timeout_min"] * 60
     hits: list[Hit] = []

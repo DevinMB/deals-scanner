@@ -16,6 +16,7 @@ class Walmart(Source):
     label = "Walmart"
     local = False
     store = True
+    min_interval_min = 180  # store prices move slowly; every scan just invites the bot check
 
     def search(self, query: str, watch: Watch) -> list[Listing]:
         m = None

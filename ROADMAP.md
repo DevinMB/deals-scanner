@@ -32,3 +32,7 @@ Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7n
   below). Prices compared per listing (user's choice), so store watches should name the pack size.
   Amazon and Walmart block intermittently: both detect the block page, back off and retry once; Walmart flagged
   this IP after a night of testing.
+- 2026-10-23: Scrape cadence scaled back (Walmart bot-checked every run, eBay/Amazon intermittently). Amazon and
+  Walmart run at most every 3 h (store prices move slowly). Any source whose run was only rate-limited cools down
+  1 h, doubling per blocked run up to 24 h; Settings → Source health shows "Next try". Preview and targeted scans
+  ignore the schedule. eBay, Craigslist, OfferUp, Slickdeals and RSS still run every 30 min.

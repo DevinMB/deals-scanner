@@ -10,11 +10,11 @@
   <h2>Source health</h2>
   {% if badges %}
   <div class="table-wrap"><table class="compact">
-    <thead><tr><th>Source</th><th>Status</th><th>Last good run</th><th>Last problem</th></tr></thead>
+    <thead><tr><th>Source</th><th>Status</th><th>Last good run</th><th>Next try</th><th>Last problem</th></tr></thead>
     <tbody>{% for b in badges %}
       <tr><td>{{ b.label }}</td>
         <td><span class="tag {{ 'bad' if b.state == 'failing' else 'warn' if b.state == 'flaky' else 'good' }}">{{ {'ok': 'OK', 'flaky': 'empty last run', 'failing': 'failing'}[b.state] }}{% if b.streak > 1 %} · {{ b.streak }} runs{% endif %}</span></td>
-        <td>{{ b.last_ok | ago }}</td><td><small>{{ b.last_error or '—' }}</small></td></tr>
+        <td>{{ b.last_ok | ago }}</td><td>{{ b.next_try | until if b.next_try else 'next scan' }}</td><td><small>{{ b.last_error or '—' }}</small></td></tr>
     {% endfor %}</tbody>
   </table></div>
   {% else %}<p class="muted">Appears after the first scan.</p>{% endif %}

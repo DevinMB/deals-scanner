@@ -14,10 +14,13 @@ class FakeEbay(Source):
     listings: list = []
     unavailable: set = set()
     fail = False
+    blocked = False
 
     def search(self, query, watch):
         if FakeEbay.fail:
             raise ConnectionError("network down")
+        if FakeEbay.blocked:
+            raise RuntimeError("eBay error page (rate-limited)")
         return list(FakeEbay.listings)
 
     def is_available(self, listing):
@@ -305,3 +308,26 @@ def test_store_watch_learns_store_prices_and_uses_store_deal_level(conn, tmp_pat
         assert [(a["tier"], a["typical_src"]) for a in n.alerts] == [("DEAL", "store prices, 7 samples")]
     finally:
         REG.pop("amazon")
+
+
+def test_rate_limited_source_backs_off_and_store_cadence(conn, tmp_path):
+    add_watch(conn, sources=json.dumps(["ebay", "craigslist", "amazon"]))
+    FakeEbay.listings = market_pool()
+    FakeEbay.blocked = True
+    FakeAmazon.min_interval_min = 180
+    try:
+        reg = {**REG, "amazon": FakeAmazon}
+        run_scan(conn, tmp_path / "scan.lock", RecordingNotifier(), sources=reg, sleep=False)
+        h = settings.load(conn)["health"]
+        assert h["ebay"]["next_try"] and h["ebay"]["streak"] == 1
+        assert h["amazon"]["next_try"] and h["craigslist"]["next_try"] is None  # cadence vs every scan
+        runs = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        run_scan(conn, tmp_path / "scan.lock", RecordingNotifier(), sources=reg, sleep=False)  # eBay cooling down, Amazon not due: only Craigslist runs
+        sources = [r[0] for r in conn.execute("SELECT source FROM runs ORDER BY id").fetchall()[runs:]]
+        assert sources == ["craigslist"]
+        # a targeted scan (Preview, CLI --watch) ignores the schedule
+        run_scan(conn, tmp_path / "scan.lock", RecordingNotifier(), sources=reg, sleep=False, watch_ids=[1])
+        assert settings.load(conn)["health"]["ebay"]["streak"] == 2
+    finally:
+        FakeEbay.blocked = False
+        FakeAmazon.min_interval_min = 0

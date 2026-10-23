@@ -72,6 +72,7 @@ class Source:
     has_body: bool = False
     detail_cap_key: str = "detail_fetch_cap"  # settings key: max body fetches per run
     query_delay: tuple[float, float] = (2, 5)  # seconds between searches
+    min_interval_min: int = 0  # scheduled scans skip this source until this long after its last run
 
     def is_available(self, listing: Listing) -> bool | None:
         """Checked right before alerting. True = still live, False = gone (sold, expired), None = couldn't check."""

@@ -24,6 +24,7 @@ class Amazon(Source):
     label = "Amazon"
     local = False
     store = True
+    min_interval_min = 180  # store prices move slowly; every scan just invites the bot check
     needs_browser = True
     query_delay = (5, 10)
 

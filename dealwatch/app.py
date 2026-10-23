@@ -88,6 +88,14 @@ def ago(ts: str | None) -> str:
     return f"{s // 86400:.0f} days ago"
 
 
+def until(ts: str | None) -> str:
+    t = _parse(ts)
+    s = (t - datetime.now(timezone.utc)).total_seconds() if t else 0
+    if s <= 0:
+        return "next scan"
+    return f"in {s // 60 + 1:.0f} min" if s < 3600 else f"in {s / 3600:.0f} h"
+
+
 def money(v) -> str:
     return "—" if v is None else f"${v:,.0f}"
 
@@ -96,7 +104,7 @@ def pct_below(ratio) -> str:
     return "" if ratio is None else f"{round((1 - ratio) * 100)}%"
 
 
-templates.env.filters.update(ago=ago, money=money, pct_below=pct_below, fromjson=json.loads)
+templates.env.filters.update(ago=ago, until=until, money=money, pct_below=pct_below, fromjson=json.loads)
 templates.env.globals.update(SOURCE_LABELS=SOURCE_LABELS, USED_SOURCES=USED_SOURCES, STORE_SOURCES=STORE_SOURCES)
 
 
