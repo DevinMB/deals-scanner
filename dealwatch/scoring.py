@@ -60,7 +60,7 @@ class Score:
     reasons: list[str]
 
 
-def _find(watch: Watch, text: str) -> int | None:
+def find_match(watch: Watch, text: str) -> int | None:
     """Start of the watch's match in text, or None. Default rule: every word of the first search query."""
     if watch.include_regex:
         m = re.search(watch.include_regex, text, re.I)
@@ -86,7 +86,7 @@ def classify(title: str, watch: Watch, rules: Rules, body: str = "") -> Match | 
     use_body = (watch.bundle_enabled and body and (b["word_regex"].search(t) or _bundle_phrase(watch, b).search(t)
                 or b["spec_regex"].search(t)) and not b["other_item_regex"].search(t))
     for text in (t, body.lower() if use_body else ""):
-        p = _find(watch, text) if text else None
+        p = find_match(watch, text) if text else None
         if p is not None and not (watch.exclude_terms and _excludes(tuple(watch.exclude_terms)).search(text)):
             pos, src = p, text
             break

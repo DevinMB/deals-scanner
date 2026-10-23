@@ -101,5 +101,27 @@
     "water cooler",
     "\\baio\\b",
     "\\bfor\\s+(the\\s+|an?\\s+)?(asus|msi|evga|gigabyte|zotac|pny|nvidia|rtx|geforce|founders|sapphire|xfx)"
+  ],
+  "rss_feeds": [
+    {
+      "name": "r/hardwareswap+homelabsales",
+      "url": "https://www.reddit.com/r/hardwareswap+homelabsales/new/.rss?limit=50",
+      "used": true
+    },
+    {
+      "name": "r/buildapcsales",
+      "url": "https://www.reddit.com/r/buildapcsales/new/.rss?limit=50",
+      "used": false
+    },
+    {
+      "name": "Slickdeals frontpage",
+      "url": "https://slickdeals.net/newsearch.php?mode=frontpage&searcharea=deals&searchin=first&rss=1",
+      "used": false
+    },
+    {
+      "name": "Ben's Bargains",
+      "url": "https://www.bensbargains.com/rss/",
+      "used": false
+    }
   ]
 }
