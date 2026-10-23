@@ -69,7 +69,9 @@ label.check small { display: inline; margin-left: .35rem; }
   background: var(--surface); border: 1px solid var(--line); border-radius: .75rem; padding: .25rem 1rem .75rem; }
 details.advanced { padding: .6rem 1rem; }
 details.advanced summary, details.danger summary { cursor: pointer; font-weight: 600; }
-details.danger { margin-top: 2.5rem; color: var(--muted); }
+details.danger { margin-top: 1.25rem; color: var(--muted); }
+details.advanced-box { margin-top: 2.5rem; }
+details.advanced-box summary { cursor: pointer; font-weight: 600; }
 details.danger form { margin: .5rem .5rem 0 0; }
 .errors { border: 1px solid var(--bad); background: var(--bad-bg); color: var(--fg); border-radius: .5rem;
           padding: .6rem 1rem; margin-bottom: 1rem; }
@@ -126,6 +128,15 @@ table.compact { width: auto; }
 .filters label { min-width: 12rem; }
 .alert-list { list-style: none; padding: 0; margin: 0; }
 .alert-list li { padding: .45rem 0; border-bottom: 1px solid var(--line); }
+
+/* suggest */
+.name-row { display: flex; gap: .5rem; align-items: center; }
+.name-row input { flex: 1; }
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }
+.suggest { border: 1px solid var(--line); border-radius: .6rem; padding: .5rem .8rem; margin: .6rem 0; background: var(--bg); }
+.sg-row { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; margin: .4rem 0; }
+.sg-label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; min-width: 7.5rem; }
 
 /* recipients */
 .people { list-style: none; padding: 0; margin: .5rem 0; }

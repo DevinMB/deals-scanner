@@ -172,7 +172,7 @@ def test_preview_validation(client):
 
 def test_gpu_import_creates_17_and_updates_by_name(client):
     create(client, name="RTX 3090", search_queries="rtx 3090")
-    assert "Import the 16 GPU watches" in client.get("/").text
+    assert "Import 16 GPU watches" in client.get("/settings").text and "Import" not in client.get("/").text
     r = client.post("/import/gpu", follow_redirects=False)
     assert r.headers["location"] == "/?imported=16+new,+1+updated"
     db = client.app.state.db
@@ -182,7 +182,7 @@ def test_gpu_import_creates_17_and_updates_by_name(client):
     assert w["include_regex"] == r"(?<!\d)3090(?!\d)(?!\s*ti)"
     ex = json.loads(w["exclude_terms"])
     assert r"3090\ ti" in ex and r"\blaptop\b" in ex
-    assert "Import the" not in client.get("/").text
+    assert "All 17 GPU models are already watches" in client.get("/settings").text
     # re-import is idempotent
     client.post("/import/gpu")
     assert db.execute("SELECT COUNT(*) FROM watches").fetchone()[0] == 17
@@ -247,3 +247,17 @@ def test_dashboard_deal_count_follows_current_filters_and_sorts_deals_first(clie
     assert '<dt>Deals now</dt><dd>1</dd>' in page
     client.post(f"/watches/{wid}/exclude", data={"word": "graphite"})
     assert '<dt>Deals now</dt><dd>1</dd>' not in client.get("/").text
+
+
+def test_suggest_button_and_partial(client, monkeypatch):
+    from dealwatch import llm, settings
+    assert "Set up Ollama to get suggestions" in client.get("/watches/new").text
+    settings.put(client.app.state.db, "ollama_url", "http://ollama")
+    assert 'hx-post="/suggest"' in client.get("/watches/new").text
+    monkeypatch.setattr(llm, "suggest", lambda url, model, item: (
+        {"search_terms": ["fujifilm x100v"], "exclude": [r"\bx100vi\b", r"\blens\ hood\b"], "typical_price": 1400,
+         "note": "check shutter"}, ""))
+    html = client.post("/suggest", data={"name": "Fujifilm X100V"}).text
+    assert 'value="fujifilm x100v" checked' in html and "> lens hood</label>" in html and "$1,400 as override" in html
+    assert 'data-kind="price" value="1400">' in html  # price is opt-in
+    assert "Type what you want to buy" in client.post("/suggest", data={"name": ""}).text

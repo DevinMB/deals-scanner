@@ -174,10 +174,8 @@ def dashboard(request: Request):
     # Live deals first, then recent alerts, then the rest; paused watches last
     cards.sort(key=lambda cd: (not cd["w"].enabled, -cd["deals"], -(_parse(cd["alert"]["sent_at"]).timestamp()
                if cd["alert"] else 0), cd["w"].name.lower()))
-    names = {cd["w"].name.lower() for cd in cards}
-    gpu_missing = sum(1 for m in gpu_import.GPU["models"] if m["name"].lower() not in names)
     return page(request, "dashboard.html", cards=cards, badges=health_badges(s), last_run=s.get("last_run"),
-                scanning=_scanning(request), gpu_missing=gpu_missing, imported=request.query_params.get("imported"))
+                scanning=_scanning(request), imported=request.query_params.get("imported"))
 
 
 @app.post("/import/gpu")
@@ -286,8 +284,8 @@ def _as_watch(d: dict, wid=None) -> Watch:
 
 
 def form_page(request: Request, w: Watch, errors: list, is_new: bool, chosen: set[int]):
-    return page(request, "watch_form.html", w=w, errors=errors, is_new=is_new,
-                people=recipients.all(conn(request)), chosen=chosen)
+    return page(request, "watch_form.html", w=w, errors=errors, is_new=is_new, people=recipients.all(conn(request)),
+                chosen=chosen, ollama=bool(settings_mod.load(conn(request)).get("ollama_url")))
 
 
 def chosen_recipients(form) -> set[int]:
@@ -338,6 +336,19 @@ def delete_watch(request: Request, wid: int):
     c.execute("DELETE FROM alerts WHERE watch_id = ?", (wid,))
     c.execute("DELETE FROM watches WHERE id = ?", (wid,))
     return RedirectResponse("/", 303)
+
+
+# ---------- suggest ----------
+
+@app.post("/suggest", response_class=HTMLResponse)
+async def suggest(request: Request):
+    from . import llm
+    item = (await request.form()).get("name", "").strip()
+    if not item:
+        return '<p class="err">Type what you want to buy in Name first, e.g. “Fujifilm X100V”.</p>'
+    s = settings_mod.load(conn(request))
+    out, err = llm.suggest(s.get("ollama_url"), s["ollama_model"], item)
+    return templates.get_template("_suggest.html").render(s=out, err=err, item=item, model=s["ollama_model"])
 
 
 # ---------- preview ----------
@@ -483,8 +494,14 @@ def settings_page(request: Request, saved: int = 0, people_error: int = 0):
     cfg = request.app.state.cfg
     return page(request, "settings.html", s=s, errors=[], saved=saved, badges=health_badges(s), people_error=people_error,
                 people=recipients.all(conn(request)), watch_count=conn(request).execute("SELECT COUNT(*) FROM watches").fetchone()[0],
+                gpu_missing=_gpu_missing(request),
                 token=_mask(cfg.telegram_bot_token), chat=_mask(cfg.telegram_chat_id), dry_run=cfg.dry_run,
                 base_url=cfg.base_url, feeds_text=_feeds_text(s["rss_feeds"]))
+
+
+def _gpu_missing(request: Request) -> list[str]:
+    names = {r[0].lower() for r in conn(request).execute("SELECT name FROM watches")}
+    return [m["name"] for m in gpu_import.GPU["models"] if m["name"].lower() not in names]
 
 
 def _feeds_text(feeds: list[dict]) -> str:
@@ -542,6 +559,7 @@ async def save_settings(request: Request):
         cfg = request.app.state.cfg
         return page(request, "settings.html", s=s, errors=errors, saved=0, badges=health_badges(s),
                     people=recipients.all(c), watch_count=c.execute("SELECT COUNT(*) FROM watches").fetchone()[0],
+                    gpu_missing=_gpu_missing(request),
                     token=_mask(cfg.telegram_bot_token), chat=_mask(cfg.telegram_chat_id), dry_run=cfg.dry_run,
                     base_url=cfg.base_url, feeds_text=form.get("rss_feeds", ""))
     old_interval = settings_mod.load(c)["scan_interval_min"]

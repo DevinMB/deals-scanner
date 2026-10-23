@@ -6,12 +6,6 @@
 </div>
 
 {% if imported %}<p class="ok">GPU import done: {{ imported }}.</p>{% endif %}
-{% if gpu_missing %}
-<form method="post" action="/import/gpu" class="import-banner">
-  <span>Import the {{ gpu_missing }} GPU watch{{ 'es' if gpu_missing != 1 }} from the old GPU deal scanner, with their prices and filters?</span>
-  <button class="btn primary">Import GPU watches</button>
-</form>
-{% endif %}
 
 {% set bad = badges | selectattr("state", "ne", "ok") | list %}
 {% if bad %}

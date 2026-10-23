@@ -2,14 +2,6 @@
 
 Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7nG1ELY
 
-## After step 6: LLM-assisted watch creation
-
-- "Suggest" button on the new-watch form fills search terms, include regex, exclude terms and a rough
-  typical price from a plain description ("Herman Miller Aeron size B"). The user reviews, runs Preview, saves.
-- Backend: the LAN Ollama server at `http://192.168.1.197:11434` (reachable from deals-lab, checked 2026-10-23).
-  Configure via an optional `OLLAMA_URL` env var; pick the model in Settings.
-- Called only on button press, never during scans. Form works by hand when Ollama is off or unset.
-
 ## Step 8 (last): UI review pass
 
 - Drive every page with Playwright at desktop and phone widths, screenshot each, and clean up layout,
@@ -30,3 +22,7 @@ Build steps 1–7 follow the brief: https://claude.ai/artifact/VDZaeNx8XW5fauM7n
 - 2026-10-23: Telegram recipients built (user asked): Settings → Telegram recipients (you = "Me", chat from .env;
   add people by "Find people who messaged the bot" or chat ID; rename, test, remove), per-watch "Send alerts to"
   picker defaulting to you, delivery tracked per person so a failed chat retries alone. Health warnings: owner only.
+- 2026-10-23: Ollama Suggest built (user asked): on the watch form, Suggest proposes search terms, whole-word
+  excludes and a rough price as tickable chips; Apply merges them in, nothing is overwritten. qwen3.5:4b (~2.5 s)
+  beat the 9B, which invented models and copied the prompt example. Suggestions still need a human glance.
+- 2026-10-23: GPU import moved off the dashboard into Settings; user trimmed watches to RTX 3090, Aeron, X100V.

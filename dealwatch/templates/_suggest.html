@@ -1,0 +1,21 @@
+{% if err %}
+<p class="err"><small>{{ err }}</small></p>
+{% else %}
+<div class="suggest" id="suggestion">
+  <p><strong>Suggestions for “{{ item }}”</strong> <small class="muted">from {{ model }}. Untick anything wrong, then Apply. Nothing changes until you do.</small></p>
+  <div class="sg-row"><span class="sg-label">Search terms</span>
+    {% for t in s.search_terms %}<label class="chip-check"><input type="checkbox" data-kind="query" value="{{ t }}" checked> {{ t }}</label>{% endfor %}</div>
+  {% if s.exclude %}
+  <div class="sg-row"><span class="sg-label">Exclude</span>
+    {% for x in s.exclude %}<label class="chip-check"><input type="checkbox" data-kind="exclude" value="{{ x }}" checked> {{ x | replace('\\b', '') | replace('\\', '') }}</label>{% endfor %}</div>
+  {% endif %}
+  {% if s.typical_price %}
+  <div class="sg-row"><span class="sg-label">Typical price</span>
+    <label class="chip-check"><input type="checkbox" data-kind="price" value="{{ s.typical_price }}"> {{ s.typical_price | money }} as override</label>
+    <small class="muted">a rough guess from the model's memory; eBay's learned price is usually better</small></div>
+  {% endif %}
+  {% if s.note %}<p class="muted"><small>Tip: {{ s.note }}</small></p>{% endif %}
+  <p><button type="button" class="btn primary small" onclick="applySuggestion(this)">Apply</button>
+     <button type="button" class="btn small" onclick="this.closest('.suggest').remove()">Dismiss</button></p>
+</div>
+{% endif %}

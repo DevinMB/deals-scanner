@@ -14,9 +14,18 @@
 <form method="post" action="{{ '/watches' if is_new else '/watches/' ~ w.id }}" class="watch-form">
   <section>
     <h2>What to look for</h2>
-    <label>Name
-      <input name="name" value="{{ w.name }}" placeholder="Herman Miller Aeron" required autofocus>
-    </label>
+    <label>Name <small>what you want to buy</small></label>
+    <div class="name-row">
+      <input name="name" value="{{ w.name }}" placeholder="Herman Miller Aeron" required autofocus aria-label="Name">
+      {% if ollama %}
+      <button class="btn" type="button" hx-post="/suggest" hx-include="[name=name]" hx-target="#suggest-out"
+              hx-indicator="#sg-spin">Suggest</button>
+      <span id="sg-spin" class="spinner htmx-indicator" aria-hidden="true"></span>
+      {% else %}
+      <a class="muted" href="/settings#part-check"><small>Set up Ollama to get suggestions</small></a>
+      {% endif %}
+    </div>
+    <div id="suggest-out"></div>
     <label>Search terms <small>one search per line; each is run on every source</small>
       <textarea name="search_queries" rows="3" placeholder="herman miller aeron">{{ w.search_queries | join('\n') }}</textarea>
     </label>
@@ -94,4 +103,23 @@
   <form method="post" action="/watches/{{ w.id }}/delete"><button class="btn danger-btn">Delete “{{ w.name }}”</button></form>
 </details>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+// Merge the ticked suggestions into the form: new lines are appended, nothing is overwritten
+function applySuggestion(btn) {
+  const box = btn.closest(".suggest"), form = document.querySelector("form.watch-form");
+  const picked = (kind) => [...box.querySelectorAll(`input[data-kind=${kind}]:checked`)].map((i) => i.value);
+  const merge = (name, values) => {
+    const ta = form.querySelector(`textarea[name=${name}]`);
+    const have = ta.value.split("\n").map((s) => s.trim()).filter(Boolean);
+    ta.value = [...have, ...values.filter((v) => !have.includes(v))].join("\n");
+  };
+  merge("search_queries", picked("query"));
+  merge("exclude_terms", picked("exclude"));
+  const price = picked("price")[0];
+  if (price) { form.querySelector("input[name=typical_override]").value = price; form.querySelector("input[name=override_enabled]").checked = true; }
+  box.innerHTML = '<p class="ok">Applied. Press Preview to see how it does on real listings, then save.</p>';
+}
+</script>
 {% endblock %}

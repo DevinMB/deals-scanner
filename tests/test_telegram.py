@@ -105,3 +105,19 @@ def test_alert_per_recipient_and_recent_chats(monkeypatch):
     monkeypatch.setattr(telegram.httpx, "get", lambda url, timeout: httpx.Response(200, json=updates))
     chats, err = n.recent_chats()
     assert err == "" and [(c["chat_id"], c["name"]) for c in chats] == [("99", "Alex K"), ("-100", "Deals group")]
+
+
+def test_suggest_filters_excludes_that_would_block_the_item(monkeypatch):
+    import json as _json
+    from dealwatch import llm
+    reply = {"search_terms": ["Fujifilm X100V", "x100v body"], "typical_price_usd": 1400.4, "note": "check shutter",
+             "exclude": ["x100", "X100VI", "fujifilm", "lens hood", "x100vi", "body", "c++ case"]}
+    monkeypatch.setattr(llm.httpx, "post", lambda url, timeout, json: httpx.Response(
+        200, json={"message": {"content": _json.dumps(reply)}}, request=httpx.Request("POST", url)))
+    s, err = llm.suggest("http://ollama", "m", "Fujifilm X100V")
+    assert err == "" and s["search_terms"] == ["fujifilm x100v", "x100v body"] and s["typical_price"] == 1400
+    # "fujifilm" (in the name) and "body" (in a search term) are dropped; the rest become whole-word patterns
+    assert s["exclude"] == [r"\bx100\b", r"\bx100vi\b", r"\blens\ hood\b", r"\bc\+\+\ case\b"]
+    import re
+    assert not re.search(s["exclude"][0], "fujifilm x100v silver")  # whole word: x100 doesn't block x100v
+    assert llm.suggest("", "m", "x")[0] is None
