@@ -67,6 +67,13 @@ class Source:
         """Listing description, for bundle matching. Empty when the source has none."""
         return ""
 
+    has_body: bool = False
+    detail_cap_key: str = "detail_fetch_cap"  # settings key: max body fetches per run
+
+    def health_count(self, parsed: int) -> int:
+        """Items that prove the source is reachable this run (0 for 3 runs = failing)."""
+        return parsed
+
 
 def http_get(url: str, **params) -> httpx.Response:
     r = httpx.get(url, params=params or None, headers={"User-Agent": UA}, timeout=25, follow_redirects=True)

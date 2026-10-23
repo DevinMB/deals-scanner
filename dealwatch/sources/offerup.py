@@ -14,6 +14,8 @@ class OfferUp(Source):
     name = "offerup"
     label = "OfferUp"
     needs_browser = True
+    has_body = True
+    detail_cap_key = "offerup_detail_cap"
 
     def search(self, query: str, watch: Watch) -> list[Listing]:
         page = self.ctx.browser.new_page()

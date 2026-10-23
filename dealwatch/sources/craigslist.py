@@ -12,6 +12,7 @@ API = "https://sapi.craigslist.org/web/v8/postings/search/full"
 class Craigslist(Source):
     name = "craigslist"
     label = "Craigslist"
+    has_body = True
 
     def search(self, query: str, watch: Watch) -> list[Listing]:
         # OR queries ("a | b | c") only work with single-word terms; a multi-word term silently breaks the query.

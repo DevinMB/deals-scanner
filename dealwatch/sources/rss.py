@@ -75,8 +75,12 @@ class Rss(Source):
             raise RuntimeError("every RSS feed failed: " + ", ".join(self.failed_feeds))
         return items
 
+    def health_count(self, parsed: int) -> int:
+        return len(self._items or [])  # feed items fetched, not matches: a quiet feed isn't a failure
+
     def search(self, query: str, watch: Watch) -> list[Listing]:
         if self._items is None:
+            self._items = []  # if every feed fails, report it once rather than refetching per watch
             self._items = self._fetch_all()
         out = []
         for feed, gid, title, link, body in self._items:

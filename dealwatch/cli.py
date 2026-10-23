@@ -1,16 +1,23 @@
 """Command-line tools.
 
   python -m dealwatch.cli search <source> "<query>" [--regex R] [--exclude T ...] [--bundle] [--all]
-
-Prints the listings a source parses for a query, marking which ones match the ad-hoc watch.
+      Print the listings a source parses for a query, marking which ones match an ad-hoc watch.
+  python -m dealwatch.cli watch add "<name>" --query Q [--query Q ...] [--override 800] [--max-price 400] ...
+  python -m dealwatch.cli watch list
+  python -m dealwatch.cli scan [--watch ID ...] [--source S ...]
+      Run one scan now against the app database (skipped if a scan is already running).
 """
 
 import argparse
+import json
 import logging
 import sys
 
+from . import config, db
 from .models import Watch
-from .scoring import classify
+from .runner import market, run_scan
+from .scoring import Rules, classify
+from .settings import load as load_settings
 from .sources import Context, registry
 
 
@@ -50,6 +57,45 @@ def search(args) -> int:
     return 0
 
 
+def watch_add(args) -> int:
+    conn = _db()
+    wid = conn.execute(
+        "INSERT INTO watches (name, search_queries, include_regex, exclude_terms, sources, typical_override,"
+        " max_price, bundle_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (args.name, json.dumps(args.query), args.regex, json.dumps(args.exclude),
+         json.dumps(args.sources or list(registry())), args.override, args.max_price, int(args.bundle))).lastrowid
+    print(f"added watch {wid}: {args.name}")
+    return 0
+
+
+def watch_list(args) -> int:
+    conn = _db()
+    rules = Rules.from_settings(load_settings(conn))
+    for r in conn.execute("SELECT * FROM watches ORDER BY id"):
+        w = Watch.from_row(r)
+        med, n, newest = market(conn, w.id, rules)
+        override = f"${w.typical_override:,.0f}{'' if w.override_enabled else ' (off)'}" if w.typical_override else "-"
+        print(f"{w.id:>3} {'on ' if w.enabled else 'off'} {w.name:<28} learned={f'${med:,.0f}' if med else '-'} "
+              f"({n} samples) override={override} max={w.max_price or '-'} sources={','.join(w.sources)}")
+    return 0
+
+
+def scan(args) -> int:
+    cfg = config.load()
+    r = run_scan(_db(), cfg.data_dir / "scan.lock", watch_ids=args.watch or None, source_names=args.source or None)
+    if r.skipped:
+        print("a scan is already running")
+        return 1
+    print(json.dumps(r.__dict__, indent=1))
+    return 0
+
+
+def _db():
+    conn = db.connect(config.load().db_path)
+    db.migrate(conn)
+    return conn
+
+
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     p = argparse.ArgumentParser(prog="dealwatch")
@@ -62,8 +108,28 @@ def main(argv=None) -> int:
     s.add_argument("--bundle", action="store_true", help="also match inside bundles")
     s.add_argument("--body", type=int, default=0, metavar="N", help="fetch bodies for the first N listings")
     s.add_argument("--all", action="store_true", help="show non-matching listings too")
+    s.set_defaults(fn=search)
+
+    w = sub.add_parser("watch", help="add or list watches").add_subparsers(dest="watch_cmd", required=True)
+    a = w.add_parser("add")
+    a.add_argument("name")
+    a.add_argument("--query", action="append", required=True)
+    a.add_argument("--regex")
+    a.add_argument("--exclude", action="append", default=[])
+    a.add_argument("--source", dest="sources", action="append", choices=list(registry()))
+    a.add_argument("--override", type=float, help="typical price override")
+    a.add_argument("--max-price", type=float)
+    a.add_argument("--bundle", action="store_true")
+    a.set_defaults(fn=watch_add)
+    w.add_parser("list").set_defaults(fn=watch_list)
+
+    sc = sub.add_parser("scan", help="run one scan now")
+    sc.add_argument("--watch", type=int, action="append")
+    sc.add_argument("--source", action="append", choices=list(registry()))
+    sc.set_defaults(fn=scan)
+
     args = p.parse_args(argv)
-    return search(args)
+    return args.fn(args)
 
 
 if __name__ == "__main__":

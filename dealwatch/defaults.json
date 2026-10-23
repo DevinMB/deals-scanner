@@ -27,7 +27,9 @@
     "looking for",
     "\\blot of\\b",
     "pre-?order",
-    "parting out"
+    "parting out",
+    "replacement",
+    "compatible with"
   ],
   "soft_flags": [
     "untested",
@@ -85,7 +87,6 @@
     "cable",
     "bridge",
     "\\bpcb\\b",
-    "replacement",
     "sticker",
     "per hour",
     "/hr\\b",
@@ -123,5 +124,12 @@
       "url": "https://www.bensbargains.com/rss/",
       "used": false
     }
-  ]
+  ],
+  "scan_interval_min": 30,
+  "run_timeout_min": 25,
+  "detail_fetch_cap": 25,
+  "offerup_detail_cap": 12,
+  "listing_retention_days": 30,
+  "telegram_enabled": true,
+  "cheap_outlier_fraction": 0.25
 }

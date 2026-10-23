@@ -204,8 +204,9 @@ def test_typical_price_needs_min_samples():
 
 
 def test_typical_price_trims_10_percent():
-    vals = [100] + [800] * 8 + [5000]  # 10 samples: one trimmed from each end
+    vals = [300] + [800] * 8 + [5000]  # 10 samples: one trimmed from each end
     assert typical_price(vals, RULES) == (800, 10)
+    assert typical_price([100] + [800] * 8 + [5000], RULES) == (800, 9)  # $100 < 25% of p90: dropped first
 
 
 def test_effective_typical():
@@ -216,3 +217,37 @@ def test_effective_typical():
     assert effective_typical(None, off) is None
     assert effective_typical(810, AERON) == 810
     assert effective_typical(None, AERON) is None
+
+
+# ---------- accessories and cheap outliers (found in the first live scan) ----------
+
+@pytest.mark.parametrize("title", [  # real eBay titles from the 2026-10-23 scan
+    "Replacement Arm Pads for Herman Miller Remastered Aeron Chair – 1 Pair",
+    "Adjustable Lumbar Support Pad for Classic Herman Miller Aeron Office Chair",
+    "2.5 Inch Chair Casters for Herman Miller Aeron, Embody, Mirra - Smooth",
+    "Herman Miller Seat Mesh - Grey Color for Aeron Classic Frame Size Large",
+    "Compatible with Herman Miller Aeron Sizes B and A Medium/Small Thick Hip Pads",
+    "Takteq Seat Hip Pivot Bolts for Herman Miller Aeron Chair 2 Pack Black",
+])
+def test_accessories_for_the_item_are_dropped(title):
+    assert c(title, AERON) is None
+
+
+@pytest.mark.parametrize("title", [
+    "Herman Miller Aeron Chair Size B Fully Loaded - for sale",
+    "Selling for $400 Herman Miller Aeron size B",
+    "Herman Miller Aeron Size C, works great",
+])
+def test_real_items_are_not_accessories(title):
+    assert c(title, AERON) is not None
+
+
+def test_gpu_accessory_dropped():
+    assert c("EK Quantum Vector block for RTX 3090 FE") is None
+
+
+def test_cheap_outliers_dropped_before_median():
+    parts = [10, 20, 20, 25, 35, 40, 47, 60, 80]  # parts outnumber chairs, as in the live Aeron results
+    chairs = [450, 500, 550, 600, 650, 700, 800]
+    assert typical_price(parts + chairs, RULES) == (600, 7)
+    assert typical_price(parts, RULES)[0] is not None  # an all-parts pool still yields a (cheap) number
