@@ -1,8 +1,16 @@
 # Playwright image ships Chromium and its system libraries; keep the tag in step with
 # the playwright pin in requirements.txt.
-FROM mcr.microsoft.com/playwright/python:v1.55.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+# Ubuntu security fixes land between base image releases, and CI's Trivy gate
+# fails on fixable HIGH and CRITICAL findings.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG COMMIT=unknown
+ENV COMMIT=$COMMIT \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATA_DIR=/data
 
