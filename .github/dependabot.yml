@@ -2,7 +2,8 @@ version: 2
 updates:
   - package-ecosystem: pip
     directory: /
-    schedule: { interval: weekly, day: monday }
+    # Daily while Phase 3's pass test runs; back to weekly after it passes.
+    schedule: { interval: daily }
     cooldown: { default-days: 14 }
   - package-ecosystem: docker
     directory: /
