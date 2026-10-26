@@ -16,9 +16,10 @@ ENV COMMIT=$COMMIT \
 
 WORKDIR /app
 COPY requirements.txt base-fixes.txt ./
-# virtualenv (and filelock, which only it needs) is build tooling from the base
-# image that the app never uses; it carried most of Trivy's findings.
-RUN pip uninstall -y virtualenv filelock \
+# virtualenv, with python-discovery and filelock that only it needs, is build
+# tooling from the base image that the app never uses; it carried most of
+# Trivy's findings. pip check fails the build if anything else needed them.
+RUN pip uninstall -y virtualenv python-discovery filelock \
  && pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir --upgrade -r base-fixes.txt \
  && pip check
