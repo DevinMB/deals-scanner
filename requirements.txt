@@ -4,6 +4,6 @@ uvicorn[standard]==0.54.0
 jinja2==3.1.6
 python-multipart==0.0.32
 httpx==0.28.1
-apscheduler==3.11.3
+apscheduler==3.11.2
 playwright==1.63.0
 pytest==9.1.1
