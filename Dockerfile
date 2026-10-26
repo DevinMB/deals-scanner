@@ -1,6 +1,6 @@
 # Playwright image ships Chromium and its system libraries; keep the tag in step with
 # the playwright pin in requirements.txt.
-FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.64.1-noble
 
 # Ubuntu security fixes land between base image releases, and CI's Trivy gate
 # fails on fixable HIGH and CRITICAL findings.
