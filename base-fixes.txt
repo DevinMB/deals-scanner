@@ -3,7 +3,7 @@
 # Floors, not pins: the base image moves under us, and these only need to be at
 # least the fixed release. Drop a line once the base image ships past it.
 setuptools>=78.1.1
-msgpack>=1.2.1
+msgpack>=1.2.3
 urllib3>=2.8.0
 # CRITICAL GHSA-6q48-6c7w-9gw2; the fix is newer than the usual two-week wait.
 certifi>=2026.10.19
