@@ -19,10 +19,16 @@ COPY requirements.txt base-fixes.txt ./
 # virtualenv, with python-discovery and filelock that only it needs, is build
 # tooling from the base image that the app never uses; it carried most of
 # Trivy's findings. pip check fails the build if anything else needed them.
+#
+# pip goes last: it vendors its own older certifi, msgpack and urllib3, and the
+# running app never installs anything. /root/.cache holds virtualenv's seed
+# wheels (an old setuptools).
 RUN pip uninstall -y virtualenv python-discovery filelock \
  && pip install --no-cache-dir -r requirements.txt \
  && pip install --no-cache-dir --upgrade -r base-fixes.txt \
- && pip check
+ && pip check \
+ && pip uninstall -y pip \
+ && rm -rf /root/.cache
 
 COPY dealwatch ./dealwatch
 COPY tests ./tests
