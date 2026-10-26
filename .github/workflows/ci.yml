@@ -11,8 +11,8 @@ permissions:
   actions: write        # the gate starts the main build after merging
 jobs:
   ci:
-    # Shared pipeline: homelab-ops docs/app-onboarding.md
-    uses: DevinMB/homelab-ops/.github/workflows/app-ci.yml@main
+    # Shared pipeline: github.com/DevinMB/workflows
+    uses: DevinMB/workflows/.github/workflows/app-ci.yml@main
     with:
       image: ghcr.io/devinmb/deals-scanner
       test-command: python -m pytest -q

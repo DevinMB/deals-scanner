@@ -5,15 +5,29 @@ updates:
     # Daily while Phase 3's pass test runs; back to weekly after it passes.
     schedule: { interval: daily }
     cooldown: { default-days: 14 }
+    # Patch and minor updates arrive as one PR per ecosystem: one build, not one
+    # per package. Majors stay separate and wait for Devin.
+    groups:
+      updates:
+        update-types: [minor, patch]
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly, day: monday }
     cooldown: { default-days: 14 }
+    # Patch and minor updates arrive as one PR per ecosystem: one build, not one
+    # per package. Majors stay separate and wait for Devin.
+    groups:
+      updates:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday }
     cooldown: { default-days: 14 }
+    # Patch and minor updates arrive as one PR per ecosystem: one build, not one
+    # per package. Majors stay separate and wait for Devin.
+    groups:
+      updates:
+        update-types: [minor, patch]
     ignore:
-      # The shared pipeline tracks main on purpose, and Dependabot cannot read
-      # the private homelab-ops repo anyway.
-      - dependency-name: "DevinMB/homelab-ops/*"
+      # The shared pipeline tracks main on purpose.
+      - dependency-name: "DevinMB/workflows/*"
