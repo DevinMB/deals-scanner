@@ -1,14 +1,34 @@
 # Playwright image ships Chromium and its system libraries; keep the tag in step with
 # the playwright pin in requirements.txt.
-FROM mcr.microsoft.com/playwright/python:v1.55.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+# Ubuntu security fixes land between base image releases, and CI's Trivy gate
+# fails on fixable HIGH and CRITICAL findings.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG COMMIT=unknown
+ENV COMMIT=$COMMIT \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATA_DIR=/data
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt base-fixes.txt ./
+# virtualenv, with python-discovery and filelock that only it needs, is build
+# tooling from the base image that the app never uses; it carried most of
+# Trivy's findings. pip check fails the build if anything else needed them.
+#
+# pip goes last: it vendors its own older certifi, msgpack and urllib3, and the
+# running app never installs anything. /root/.cache holds virtualenv's seed
+# wheels (an old setuptools).
+RUN pip uninstall -y virtualenv python-discovery filelock \
+ && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir --upgrade -r base-fixes.txt \
+ && pip check \
+ && pip uninstall -y pip \
+ && rm -rf /root/.cache
 
 COPY dealwatch ./dealwatch
 COPY tests ./tests
