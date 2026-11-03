@@ -6,4 +6,13 @@ services:
     volumes: ["./data:/data"]
     env_file: .env
     shm_size: 1gb
+    # Chromium's sandbox needs user namespaces, which Docker's default seccomp
+    # profile blocks. seccomp_profile.json is Playwright's own profile
+    # (microsoft/playwright utils/docker, v1.64.1), and SYS_CHROOT is the only
+    # capability the sandbox needs.
+    security_opt: ["seccomp=seccomp_profile.json", "no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [SYS_CHROOT]
+    read_only: true
+    tmpfs: [/tmp]
     restart: unless-stopped

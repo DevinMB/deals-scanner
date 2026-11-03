@@ -9,7 +9,9 @@ class Browser:
     def __init__(self, home: dict):
         from playwright.sync_api import sync_playwright
         self._pw = sync_playwright().start()
-        self.browser = self._pw.chromium.launch(channel="chromium",
+        # Playwright turns Chromium's sandbox off by default; these pages are third-party content, so keep
+        # it on. In Docker it needs the non-root user and seccomp_profile.json (see compose.yaml).
+        self.browser = self._pw.chromium.launch(channel="chromium", chromium_sandbox=True,
                                                 args=["--disable-blink-features=AutomationControlled"])
         # OfferUp results follow the browser's location, so pin it to home
         self.ctx = self.browser.new_context(user_agent=UA, locale="en-US", viewport={"width": 1366, "height": 900},
