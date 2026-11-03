@@ -62,6 +62,15 @@ RUN pip uninstall -y virtualenv python-discovery filelock \
 COPY dealwatch ./dealwatch
 COPY tests ./tests
 
+# Run as the base image's unprivileged pwuser (uid 1001) so Chromium's sandbox can
+# work. A bind-mounted /data must be writable by uid 1001. The XDG dirs point
+# Chromium's profile and crash reports at /tmp, so the root filesystem can be
+# mounted read-only.
+RUN mkdir -p /data && chown pwuser:pwuser /data
+ENV XDG_CONFIG_HOME=/tmp/.config \
+    XDG_CACHE_HOME=/tmp/.cache
+USER pwuser
+
 VOLUME /data
 EXPOSE 8080
 
