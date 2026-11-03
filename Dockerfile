@@ -8,6 +8,35 @@ RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
+# Playwright 1.64.x bundles Chromium 156.0.8078.4, a pre-stable build that lacks
+# the fixes in Chrome 156 stable (2026-10-27), among them the critical
+# CVE-2026-118306, -118331, -118344 and -118348. No 1.64 patch ships a newer one,
+# so swap in Chrome for Testing stable over the bundled revision (1248), with
+# pinned hashes. The fix is newer than the usual two-week wait. Drop this block
+# once the Playwright pin moves past 1.64: the revision check fails the build to
+# say so, rather than quietly putting an older Chromium over a newer one.
+ARG CFT_VERSION=156.0.8078.80
+RUN test -d /ms-playwright/chromium-1248 \
+ || { echo "Base image no longer ships Chromium 1248: drop the Chrome for Testing override" >&2; exit 1; } \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends unzip \
+ && cd /tmp \
+ && base=https://storage.googleapis.com/chrome-for-testing-public/$CFT_VERSION/linux64 \
+ && curl -fsSLO $base/chrome-linux64.zip \
+ && curl -fsSLO $base/chrome-headless-shell-linux64.zip \
+ && printf '%s\n' \
+      "b711c720f774be355197f32edf37e0651418ba036d92446ee2da19ac017540a7  chrome-linux64.zip" \
+      "547dcd374e02961bf998f6046a267644f8502225c36bb78ca307dab32a0b3eb4  chrome-headless-shell-linux64.zip" \
+    | sha256sum -c - \
+ && rm -rf /ms-playwright/chromium-1248/chrome-linux64 \
+           /ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64 \
+ && unzip -q chrome-linux64.zip -d /ms-playwright/chromium-1248 \
+ && unzip -q chrome-headless-shell-linux64.zip -d /ms-playwright/chromium_headless_shell-1248 \
+ && /ms-playwright/chromium-1248/chrome-linux64/chrome --version | grep -F "$CFT_VERSION" \
+ && rm -f /tmp/*.zip \
+ && apt-get purge -y unzip \
+ && rm -rf /var/lib/apt/lists/*
+
 ARG COMMIT=unknown
 ENV COMMIT=$COMMIT \
     PYTHONDONTWRITEBYTECODE=1 \
