@@ -6,4 +6,4 @@ setuptools>=84.0.0
 msgpack>=1.2.3
 urllib3>=2.8.0
 # CRITICAL GHSA-6q48-6c7w-9gw2; the fix is newer than the usual two-week wait.
-certifi>=2026.10.19
+certifi>=2026.10.23
