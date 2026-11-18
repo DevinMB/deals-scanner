@@ -1,4 +1,4 @@
-# Made by Argus (pipeline 1). Argus opened this as a pull request; edit it as
+# Made by Argus (pipeline 3). Argus opened this as a pull request; edit it as
 # you like. Argus offers updates to it while this first line stays.
 #
 # Builds deals-scanner.
@@ -19,19 +19,23 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Each job asks for what it needs: the jobs that build a pull request's code
+# can push images only, and only the gate, which runs none of it, can merge.
 permissions:
-  contents: write       # the gate merges Dependabot PRs
-  pull-requests: write  # ...and labels majors
-  packages: write       # push to GHCR
-  actions: write        # the gate starts the main build after merging
+  contents: read
 
 jobs:
   ci:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write   # push to GHCR from main
     env:
       IMAGE: "ghcr.io/devinmb/deals-scanner"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false  # no token in .git for the build to find
 
       # Runners have about 14 GB free; toolchains this never uses take 20 GB more.
       - name: Free disk space
@@ -107,6 +111,10 @@ jobs:
     needs: [ci]
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write       # merge Dependabot PRs
+      pull-requests: write  # ...and label majors
+      actions: write        # start the main build after merging
     steps:
       - id: meta
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
@@ -121,7 +129,18 @@ jobs:
           UPDATE: ${{ steps.meta.outputs.update-type }}
         run: |
           set -eu
-          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --merge --delete-branch
+          # Merge with whichever method the repository allows, and retry while GitHub
+          # settles (another update merged a moment ago, or mergeability is still being
+          # worked out). A conflict fails here; Dependabot then rebases and CI runs again.
+          merged=
+          for try in 1 2 3 4 5 6; do
+            for how in squash merge rebase; do
+              if out=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --$how --delete-branch 2>&1); then merged=$how; break 2; fi
+              case $out in *"not allowed"*) ;; *) break ;; esac
+            done
+            echo "Merge attempt $try: $out"; sleep 20
+          done
+          [ -n "$merged" ] || { echo "::error::Could not merge #$PR: $out"; exit 1; }
           gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "main"
           echo "### Merged #$PR ($UPDATE) and started the main build" >> "$GITHUB_STEP_SUMMARY"
 
